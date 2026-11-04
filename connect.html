@@ -28,6 +28,16 @@ label{display:block;font-weight:bold;margin:12px 0 6px}input{width:100%;padding:
 <button data-mel="36" disabled>36</button><button data-mel="40" disabled>40</button><button data-mel="48" disabled>48</button><button data-mel="50" disabled>50</button><button data-mel="60" disabled>60</button><button data-mel="70" disabled>70</button><button data-mel="80" disabled>80</button><button data-mel="90" disabled>90</button>
 </div>
 <p class="small">엔트리 하드웨어 연결 프로그램을 먼저 종료하세요. 브라우저 연결 창에서 COM22(CP210x)를 선택합니다. 최초 연결은 클릭과 권한 허용이 필요합니다. 통신은 115200bps, 8N1입니다.</p>
+<section style="border-top:1px solid #dbe6f4;margin-top:23px;padding-top:15px">
+<h2>⚙️ DC 모터 안전 시험</h2>
+<p class="small">DC1~DC4 명령 위치는 확인됐지만 <b>속도·방향 값의 의미는 미확인</b>입니다. 모터를 바닥에서 띄우고 시험하세요. 한 번 누르면 0.2초만 명령을 보내고 0으로 정지합니다.</p>
+<div class="fields" style="grid-template-columns:1fr 1fr">
+<div><label for="motorPort">모터 채널</label><select id="motorPort" style="width:100%;padding:11px;border-radius:9px;font-size:16px"><option value="1">DC1</option><option value="2">DC2</option><option value="3">DC3</option><option value="4">DC4</option></select></div>
+<div><label for="motorValue">시험 바이트 (0~255)</label><input id="motorValue" type="number" value="1" min="0" max="255"></div>
+</div>
+<div class="toolbar"><button id="motorTest" disabled>DC 모터 0.2초 시험</button><button id="motorStop" class="danger" disabled>■ 모터 정지</button></div>
+<p class="small">주의: 1이 반드시 저속이라는 의미는 아닙니다. 시험 후 관찰 결과를 알려주시면 제어값을 정확하게 맞추겠습니다.</p>
+</section>
 <footer class="small">닥터과학로봇코딩학원</footer>
 </main><script>
 'use strict';
@@ -35,7 +45,7 @@ const $=id=>document.getElementById(id);
 let port=null,writer=null,queue=Promise.resolve(),stopTimer=null,playToken=0;
 const status=msg=>$('status').textContent=msg;
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
-const controls=on=>{ $('connect').disabled=on; $('disconnect').disabled=!on; $('stop').disabled=!on; $('play').disabled=!on; document.querySelectorAll('[data-mel]').forEach(b=>b.disabled=!on);};
+const controls=on=>{ $('connect').disabled=on; $('disconnect').disabled=!on; $('stop').disabled=!on; $('play').disabled=!on; $('motorTest').disabled=!on; $('motorStop').disabled=!on; document.querySelectorAll('[data-mel]').forEach(b=>b.disabled=!on);};
 function clamp(id){const v=Number($(id).value);if(!Number.isFinite(v))throw new Error(id+' 숫자를 입력하세요.');return Math.max(0,Math.min(255,Math.round(v)));}
 function packet(m1,m2){
  const b=new Uint8Array(22);
@@ -76,7 +86,28 @@ $('connect').onclick=async()=>{
 $('stop').onclick=()=>stopSound();
 $('play').onclick=()=>play();
 document.querySelectorAll('[data-mel]').forEach(b=>b.onclick=()=>{$('mel2').value=b.dataset.mel;play(Number(b.dataset.mel));});
+let motorTimer=null, motorToken=0;
+async function motorStop(silent=false){
+  clearTimeout(motorTimer);motorToken++;
+  try{if(writer)await send(packet(0,0));if(!silent)status('모터 정지 명령 전송 (DC1~DC4=0)');}
+  catch(e){status('모터 정지 오류: '+e.message);}
+}
+$('motorStop').onclick=()=>motorStop();
+$('motorTest').onclick=async()=>{
+ try{
+  if(!writer)throw new Error('먼저 포트를 연결하세요.');
+  const channel=Number($('motorPort').value),value=clamp('motorValue');
+  await stopSound(true);
+  await motorStop(true);
+  const token=++motorToken;
+  const b=packet(0,0);b[7+channel]=value;
+  let sum=0;for(let i=3;i<21;i++)sum=(sum+b[i])&255;b[21]=sum;
+  await send(b);
+  status('DC'+channel+'='+value+' 전송. 0.2초 후 정지 예정. 움직임을 관찰하세요.');
+  motorTimer=setTimeout(()=>{if(token===motorToken)motorStop();},200);
+ }catch(e){status('모터 시험 오류: '+e.message);}
+};
 $('disconnect').onclick=async()=>{
- await stopSound(true);try{await queue.catch(()=>{});if(writer){writer.releaseLock();writer=null;}if(port){await port.close();port=null;}controls(false);status('연결 해제');}catch(e){status('연결 해제 오류: '+e.message);}
+ await stopSound(true);await motorStop(true);try{await queue.catch(()=>{});if(writer){writer.releaseLock();writer=null;}if(port){await port.close();port=null;}controls(false);status('연결 해제');}catch(e){status('연결 해제 오류: '+e.message);}
 };
 </script></body></html>
