@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>커넥트 모터 실시간 테스트 | 스타게임</title>
+<style>
+*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:linear-gradient(160deg,#77c6f9,#effaff);font-family:Arial,'Malgun Gothic',sans-serif;color:#19385c}.panel{width:min(94vw,530px);background:#fff;border-radius:22px;padding:25px;box-shadow:0 12px 35px #2768a333}h1{font-size:25px;margin:0 0 8px}p{line-height:1.65}.status{background:#eef5ff;padding:15px;border-radius:12px;min-height:72px;white-space:pre-wrap;overflow-wrap:anywhere}button{border:0;border-radius:12px;padding:17px;font-size:19px;font-weight:bold;cursor:pointer}button:disabled{opacity:.45}.buttons{display:grid;grid-template-columns:1fr 1fr;gap:10px}.right{background:#198754;color:#fff}.left{background:#efac30;color:#172d48}.stop{width:100%;margin-top:10px;background:#c83f49;color:#fff}.help{font-size:14px;color:#5e6b7d}a{color:#17589d}strong{color:#b62929}</style></head>
+<body><main class="panel"><h1>🤖 커넥트 실시간 테스트</h1>
+<p>스타게임에서 <b>크롬 → 확장 프로그램 → PC 파이썬</b> 연결을 확인합니다.</p>
+<p class="help"><strong>안전 테스트:</strong> 시뮬레이션 모드에서 진행하세요. 모터를 실제로 움직이는 단계가 아닙니다.</p>
+<div id="status" class="status" role="status">확장 프로그램 연결 확인 중…</div>
+<div class="buttons" style="margin-top:15px"><button class="right" data-dir="RIGHT" disabled>네 → 오른쪽</button><button class="left" data-dir="LEFT" disabled>아니오 → 왼쪽</button></div>
+<button class="stop" data-dir="STOP" disabled>■ 정지</button>
+<p class="help">먼저 v6 ZIP의 <code>START_CONNECT.bat</code>를 실행하고, v6 ChromeExtension을 크롬에 로드한 뒤 이 페이지를 새로고침하세요.</p>
+<p><a href="./index.html">← 별 잡기 게임 돌아가기</a></p></main>
+<script>
+const statusEl=document.getElementById('status'), buttons=[...document.querySelectorAll('[data-dir]')];
+let ready=false, seq=0, timeoutId;
+function status(t){statusEl.textContent=t;}
+function setReady(v){ready=v;buttons.forEach(b=>b.disabled=!v);}
+window.addEventListener('message',e=>{
+ if(e.source!==window||e.origin!==location.origin||!e.data)return;
+ const m=e.data;
+ if(m.type==='STAR_CONNECT_READY'){setReady(true);status('확장 프로그램 감지 성공. 버튼을 눌러 PC로 명령을 전송하세요.');}
+ if(m.type==='STAR_CONNECT_RESULT'&&m.id===seq){
+  clearTimeout(timeoutId);
+  const r=m.response;
+  if(r?.result?.ok) status('전송 성공: '+r.result.direction+' / '+(r.result.simulation?'시뮬레이션':'실기기 모드')+'\nPC 검은 창도 확인해 주세요.');
+  else status('전송 실패: '+JSON.stringify(r||'응답 없음'));
+ }
+});
+buttons.forEach(b=>b.onclick=()=>{
+ if(!ready)return;
+ const id=++seq;status('전송 중: '+b.dataset.dir);
+ window.postMessage({type:'STAR_CONNECT_REQUEST',id,direction:b.dataset.dir},location.origin);
+ clearTimeout(timeoutId);
+ timeoutId=setTimeout(()=>{if(id===seq)status('응답 없음: 확장 프로그램 또는 BAT 실행 상태를 확인하세요.');},3500);
+});
+setTimeout(()=>{if(!ready)status('확장 프로그램을 감지하지 못했습니다. v6 확장 설치 후 Ctrl+Shift+R로 새로고침하세요.');},1800);
+</script></body></html>
