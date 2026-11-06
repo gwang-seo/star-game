@@ -9,7 +9,7 @@
 <div id="status" class="status" role="status">확장 프로그램 연결 확인 중…</div>
 <div class="buttons" style="margin-top:15px"><button class="right" data-dir="RIGHT" disabled>네 → 오른쪽</button><button class="left" data-dir="LEFT" disabled>아니오 → 왼쪽</button></div>
 <button class="stop" data-dir="STOP" disabled>■ 정지</button>
-<p class="help">먼저 v6 ZIP의 <code>START_CONNECT.bat</code>를 실행하고, v6 ChromeExtension을 크롬에 로드한 뒤 이 페이지를 새로고침하세요.</p>
+<p class="help">먼저 v7 ZIP의 <code>START_CONNECT.bat</code>를 실행하고, v7 ChromeExtension을 크롬에 로드한 뒤 이 페이지를 새로고침하세요.</p>
 <p><a href="./index.html">← 별 잡기 게임 돌아가기</a></p></main>
 <script>
 const statusEl=document.getElementById('status'), buttons=[...document.querySelectorAll('[data-dir]')];
@@ -34,5 +34,12 @@ buttons.forEach(b=>b.onclick=()=>{
  clearTimeout(timeoutId);
  timeoutId=setTimeout(()=>{if(id===seq)status('응답 없음: 확장 프로그램 또는 BAT 실행 상태를 확인하세요.');},3500);
 });
-setTimeout(()=>{if(!ready)status('확장 프로그램을 감지하지 못했습니다. v6 확장 설치 후 Ctrl+Shift+R로 새로고침하세요.');},1800);
+// Keep asking until the extension answers, including after late injection or reload.
+let attempts=0;
+const handshake=setInterval(()=>{
+ if(ready){clearInterval(handshake);return;}
+ window.postMessage({type:'STAR_CONNECT_HELLO',nonce:++attempts},location.origin);
+ if(attempts===4) status('브리지 연결 확인 중… v7 확장이 활성화되어 있는지 확인하세요.');
+},500);
+setTimeout(()=>{if(!ready)status('확장 프로그램 응답이 없습니다. v7 확장 설치 후 Ctrl+Shift+R로 새로고침하세요.');},4000);
 </script></body></html>
