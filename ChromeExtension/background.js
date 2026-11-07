@@ -1,0 +1,1 @@
+chrome.runtime.onMessage.addListener((message,sender,respond)=>{if(message?.type==='answer'&&sender.url&&/^https:\/\/(chatgpt\.com|chat\.openai\.com)\//.test(sender.url)){chrome.storage.local.set({latestAnswer:message.text});}if(message?.type==='get-answer'){chrome.storage.local.get('latestAnswer',r=>respond({text:r.latestAnswer||''}));return true;}});
