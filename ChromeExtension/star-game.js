@@ -27,11 +27,11 @@ function scan(){
  });
 }
 function init(){
- status('CONNECT 확장 v1.3 연결됨 · ChatGPT 확인 중');
+ status('CONNECT 확장 v1.5 연결됨 · 자동 전달 대기');
  const b=document.getElementById('refreshAnswer');if(b)b.addEventListener('click',()=>scan());
- scan();
+ sync();
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 chrome.storage.onChanged.addListener((ch,area)=>{if(area==='local'&&(ch.latestAnswer||ch.connectDiagnostic))sync();});
-setInterval(scan,5000);
+setInterval(sync,1500);
 })();
