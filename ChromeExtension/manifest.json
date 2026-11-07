@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "CONNECT ChatGPT 답변 연결",
-  "version": "1.4.0",
-  "description": "ChatGPT 답변을 자동 또는 클릭 한 번으로 스타게임 CONNECT A1 음성에 전달",
+  "version": "1.5.0",
+  "description": "ChatGPT 최신 답변 자동 전송, 수동 버튼 유지, A1 음성 읽기",
   "permissions": [
     "storage",
     "tabs",
