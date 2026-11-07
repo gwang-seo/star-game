@@ -35,7 +35,7 @@ label{display:block;font-weight:bold;margin:12px 0 6px}input{width:100%;padding:
 <label for="speechText">읽을 ChatGPT 답변</label>
 <textarea id="speechText" rows="7" style="width:100%;font-size:16px;line-height:1.5;padding:12px;border:1px solid #a4b8d3;border-radius:10px" placeholder="답변이 자동으로 들어오지 않으면 ChatGPT의 답변을 복사해 붙여넣으세요."></textarea>
 <div class="toolbar"><button id="speechEnable" type="button">🔈 음성 사용 시작</button><button id="speechTest" type="button" class="secondary">▶ 읽기 시험</button><button id="speechStop" type="button" class="danger">■ 음성 정지</button></div>
-<p id="speechStatus" class="small" role="status">크롬의 한국어 음성 기능을 이용합니다. 최초 한 번 '음성 사용 시작'을 클릭하세요.</p>
+<div id="extensionStatus" class="small" style="padding:8px;background:#fff4d7;border-radius:8px">확장 프로그램 연결 확인 중</div><div class="toolbar"><button id="refreshAnswer" type="button" class="secondary">↻ ChatGPT 답변 다시 가져오기</button></div><p id="speechStatus" class="small" role="status">크롬의 한국어 음성 기능을 이용합니다. 최초 한 번 '음성 사용 시작'을 클릭하세요.</p>
 <p class="small">ChatGPT의 최신 답변 자동 가져오기는 <b>Chrome 확장 프로그램</b>을 한 번 설치해야 합니다. 설치하지 않아도 복사·붙여넣기 후 A1 버튼으로 읽을 수 있습니다. 입력 텍스트는 브라우저 안에서만 음성 합성됩니다.</p>
 </section>
 <section style="border-top:1px solid #dbe6f4;margin-top:23px;padding-top:15px">
@@ -180,9 +180,13 @@ $('speechTest').onclick=()=>{speechReady=true;speakAnswer();};
 $('speechStop').onclick=()=>{speechSynthesis.cancel();speechStatus('음성 정지');};
 window.addEventListener('message',event=>{
  if(event.source!==window||event.origin!==location.origin)return;
+ if(event.data?.source==='connect-speech-extension-status'){$('extensionStatus').textContent='확장 프로그램 연결됨 · 답변 수신 대기';return;}
  if(event.data?.source!=='connect-speech-extension'||typeof event.data.text!=='string')return;
+ $('extensionStatus').textContent='확장 프로그램 연결됨 · 답변 수신됨';
  $('speechText').value=event.data.text.slice(0,10000);
  speechStatus('ChatGPT의 최신 답변 자동 수신 완료 · A1 버튼을 누르세요.');
 });
+$('refreshAnswer').onclick=()=>window.postMessage({source:'connect-speech-page-ready',rescan:true},location.origin);
+setTimeout(()=>window.postMessage({source:'connect-speech-page-ready',rescan:true},location.origin),800);
 window.addEventListener('pagehide',()=>{clearInterval(pollTimer);if(reader)reader.cancel().catch(()=>{});});
 </script></body></html>
