@@ -1,0 +1,38 @@
+{
+  "manifest_version": 3,
+  "name": "CONNECT ChatGPT 답변 연결",
+  "version": "1.0.0",
+  "description": "ChatGPT의 최신 답변을 스타게임 CONNECT 페이지의 A1 음성 읽기로 전달합니다.",
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "https://chatgpt.com/*",
+    "https://chat.openai.com/*",
+    "https://star-game1234.netlify.app/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://chatgpt.com/*",
+        "https://chat.openai.com/*"
+      ],
+      "js": [
+        "chatgpt.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://star-game1234.netlify.app/*"
+      ],
+      "js": [
+        "star-game.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}
