@@ -1,35 +1,41 @@
 (()=>{'use strict';
-function extractLastAssistant(){
- const candidates=[...document.querySelectorAll('[data-message-author-role="assistant"],[data-testid="assistant-message"],[data-role="assistant"]')];
- let nodes=candidates;
- if(!nodes.length){
-  const turns=[...document.querySelectorAll('[data-testid^="conversation-turn-"],article')];
-  nodes=turns.filter(n=>n.querySelector('[data-message-author-role="assistant"],[data-testid="assistant-message"]'));
- }
- if(!nodes.length){
-  nodes=[...document.querySelectorAll('main .markdown, main .prose, main [class*="markdown"]')];
- }
- const clean=node=>{
-  const clone=node.cloneNode(true);
-  clone.querySelectorAll('button,nav,footer,form,textarea,script,style,[aria-hidden="true"],[role="toolbar"]').forEach(e=>e.remove());
-  return (clone.innerText||clone.textContent||'').trim();
- };
- for(let i=nodes.length-1;i>=0;i--){
-  const root=nodes[i];
-  const messages=[...root.querySelectorAll('.markdown, .prose, [data-testid="message-text"]')];
-  let txt=messages.length?messages.map(clean).filter(Boolean).join('\n'):clean(root);
-  if(txt&&txt.length>1)return txt.slice(0,10000);
+const KEY='connect-send-now';
+function extract(){
+ const selectors=['[data-message-author-role="assistant"]','[data-testid="assistant-message"]','[data-role="assistant"]','article[data-testid*="assistant"]','main [class*="markdown"]','main .prose'];
+ for(const sel of selectors){
+  const nodes=[...document.querySelectorAll(sel)];
+  if(!nodes.length)continue;
+  let el=nodes.at(-1);
+  const parts=[...el.querySelectorAll('.markdown,.prose,[data-testid="message-text"]')];
+  if(parts.length&&sel!=='main [class*="markdown"]'&&sel!=='main .prose')el=parts.at(-1);
+  const text=(el.innerText||el.textContent||'').trim();
+  if(text.length>1)return text.slice(0,10000);
  }
  return '';
 }
-let last='',timer;
-function push(force=false){
- const text=extractLastAssistant();
- if(!text||(!force&&text===last))return;
- last=text;
- chrome.storage.local.set({latestAnswer:text,latestAt:Date.now(),connectDiagnostic:'ChatGPT 답변 '+text.length+'글자 자동 감지'},()=>void chrome.runtime.lastError);
+let last='';
+function save(text,reason){
+ if(!text||text.length<2)return false;
+ last=text.slice(0,10000);
+ chrome.storage.local.set({latestAnswer:last,latestAt:Date.now(),connectDiagnostic:reason},()=>void chrome.runtime.lastError);
+ const hint=document.getElementById('connect-hint');
+ if(hint){hint.textContent='전송 OK ('+last.length+'글자)';setTimeout(()=>hint.remove(),3500);}
+ return true;
 }
-new MutationObserver(()=>{clearTimeout(timer);timer=setTimeout(push,600);}).observe(document.documentElement,{childList:true,subtree:true,characterData:true});
-chrome.runtime.onMessage.addListener((m,s,reply)=>{if(m?.type==='rescan-chatgpt'){push(true);reply({found:!!last,length:last.length});}});
-setInterval(push,3000);push(true);
+function refresh(force=false){const t=extract();if(t&&(force||t!==last))save(t,'ChatGPT 답변 자동 감지 OK');}
+function manual(){
+ const selected=window.getSelection()?.toString().trim()||'';
+ const t=selected||extract();
+ if(!t){alert('ChatGPT 답변 글을 마우스로 드래그하여 선택한 뒤 다시 눌러 주세요.');return;}
+ save(t,selected?'선택한 답변 직접 전송 OK':'ChatGPT 답변 직접 전송 OK');
+}
+function addButton(){
+ if(document.getElementById(KEY)||!document.body)return;
+ const b=document.createElement('button');b.id=KEY;b.type='button';b.textContent='🔊 커넥트로 답변 보내기';b.title='선택한 글이 있으면 그 글을, 없으면 최신 답변을 스타게임으로 보냅니다.';
+ Object.assign(b.style,{position:'fixed',bottom:'88px',right:'18px',zIndex:'2147483647',background:'#1756af',color:'#fff',padding:'11px 15px',fontSize:'14px',borderRadius:'12px',border:'1px solid #b4cbf7',boxShadow:'0 3px 12px #0004',cursor:'pointer'});
+ b.addEventListener('click',manual);document.body.appendChild(b);
+}
+new MutationObserver(()=>{clearTimeout(window.__connectRetry);window.__connectRetry=setTimeout(()=>{refresh();addButton();},700);}).observe(document.documentElement,{childList:true,subtree:true,characterData:true});
+chrome.runtime.onMessage.addListener((m,s,reply)=>{if(m?.type==='rescan-chatgpt'){refresh(true);reply({found:!!last,length:last.length});}});
+setInterval(()=>{refresh();addButton();},3500);addButton();refresh(true);
 })();
