@@ -13,16 +13,21 @@ function extract(){
  }
  return '';
 }
-let last='';
+let last='',lastManualAt=0;
 function save(text,reason){
  if(!text||text.length<2)return false;
  last=text.slice(0,10000);
+ if(reason.includes('직접 전송'))lastManualAt=Date.now();
  chrome.storage.local.set({latestAnswer:last,latestAt:Date.now(),connectDiagnostic:reason},()=>void chrome.runtime.lastError);
  const hint=document.getElementById('connect-hint');
  if(hint){hint.textContent='전송 OK ('+last.length+'글자)';setTimeout(()=>hint.remove(),3500);}
  return true;
 }
-function refresh(force=false){const t=extract();if(t&&(force||t!==last))save(t,'ChatGPT 답변 자동 감지 OK');}
+function refresh(force=false){
+ if(Date.now()-lastManualAt<12000&&!force)return;
+ const t=extract();
+ if(t&&(force||t!==last))save(t,'ChatGPT 답변 자동 감지 OK');
+}
 function manual(){
  const selected=window.getSelection()?.toString().trim()||'';
  const t=selected||extract();
