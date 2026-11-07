@@ -1,11 +1,12 @@
 {
   "manifest_version": 3,
   "name": "CONNECT ChatGPT 답변 연결",
-  "version": "1.2.0",
-  "description": "ChatGPT 답변을 CONNECT 웹페이지 입력창에 직접 채우는 안정화 버전",
+  "version": "1.3.0",
+  "description": "CONNECT A1 음성 출력용 최신 ChatGPT 답변 자동 감지 (진단 기능 포함)",
   "permissions": [
     "storage",
-    "tabs"
+    "tabs",
+    "scripting"
   ],
   "host_permissions": [
     "https://chatgpt.com/*",
