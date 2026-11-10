@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>피지컬 AI 카메라 | 닥터과학로봇코딩학원</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:linear-gradient(#83c9f3,#e4f5ff);font-family:Arial,'Malgun Gothic',sans-serif;color:#16335b;min-height:100vh;padding:20px}
+main{max-width:760px;margin:auto;background:white;border-radius:22px;padding:20px;box-shadow:0 10px 30px #39658b33}
+h1{font-size:26px;margin:8px 0}p{line-height:1.6}video{display:block;width:100%;max-height:420px;aspect-ratio:4/3;object-fit:contain;background:#111;border-radius:14px}
+.actions{display:flex;flex-wrap:wrap;gap:9px;margin:15px 0}button,.link{background:#155aa7;color:white;border:0;border-radius:11px;padding:12px 15px;font-size:16px;cursor:pointer;text-decoration:none}
+button:disabled{background:#9aa8b7;cursor:not-allowed}#stop{background:#8a3550}#status{font-weight:bold;padding:9px 0}#shots{display:grid;grid-template-columns:repeat(auto-fill,minmax(135px,1fr));gap:12px;margin-top:12px}
+.shot{border:1px solid #d9e3ef;border-radius:12px;padding:8px}.shot img{width:100%;border-radius:7px}.shot a{display:block;margin-top:6px;word-break:keep-all;font-size:14px}
+small{color:#51667d}label{display:inline-flex;align-items:center;gap:8px}select{font-size:16px;padding:6px}
+</style></head><body><main>
+<a href="./index.html">← 스타게임으로</a><h1>📷 피지컬 AI 카메라</h1>
+<p>카메라를 켜면 이 기기에서 영상이 표시됩니다. 자동 촬영은 <b>사용자가 시작한 동안에만</b> 작동하며, 사진은 서버나 ChatGPT로 전송하지 않습니다.</p>
+<video id="preview" autoplay muted playsinline aria-label="실시간 카메라 영상"></video>
+<div class="actions"><button id="open">카메라 켜기</button><button id="capture" disabled>사진 촬영</button><button id="auto" disabled>자동 촬영 시작</button><button id="stop" disabled>카메라 끄기</button></div>
+<label>자동 촬영 간격 <select id="interval"><option value="2000">2초</option><option value="5000" selected>5초</option><option value="10000">10초</option></select></label>
+<div id="status" role="status">카메라가 꺼져 있습니다.</div>
+<small>최대 12장까지 이 화면에 보관합니다. 사진의 '저장'을 누르면 내 기기에 저장됩니다. 이 페이지는 사진을 AI에 자동 전달하거나 모터를 제어하지 않습니다.</small>
+<h2>촬영한 사진 (<span id="count">0</span>)</h2><div id="shots"></div>
+</main><script>
+const video=document.getElementById('preview'),openBtn=document.getElementById('open'),captureBtn=document.getElementById('capture'),autoBtn=document.getElementById('auto'),stopBtn=document.getElementById('stop'),statusEl=document.getElementById('status'),shots=document.getElementById('shots'),count=document.getElementById('count'),intervalEl=document.getElementById('interval');
+let stream=null,timer=null,photos=[];
+function status(s){statusEl.textContent=s}
+function stopAuto(){if(timer!==null){clearInterval(timer);timer=null}autoBtn.textContent='자동 촬영 시작'}
+function closeCamera(){stopAuto();if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}video.srcObject=null;openBtn.disabled=false;captureBtn.disabled=true;autoBtn.disabled=true;stopBtn.disabled=true;status('카메라가 꺼져 있습니다.')}
+openBtn.onclick=async()=>{try{if(!navigator.mediaDevices?.getUserMedia)throw new Error('HTTPS 환경 또는 지원 브라우저가 필요합니다.');stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'},audio:false});video.srcObject=stream;await video.play();openBtn.disabled=true;captureBtn.disabled=false;autoBtn.disabled=false;stopBtn.disabled=false;status('카메라 연결 OK');stream.getVideoTracks()[0].addEventListener('ended',closeCamera)}catch(e){status('카메라 연결 실패: '+e.message);closeCamera();status('카메라 권한과 다른 앱의 카메라 사용 여부를 확인하세요.')}}
+function capture(){if(!stream||video.readyState<2||!video.videoWidth){status('영상 준비 중입니다.');return}
+const c=document.createElement('canvas');c.width=video.videoWidth;c.height=video.videoHeight;c.getContext('2d').drawImage(video,0,0);
+const url=c.toDataURL('image/jpeg',0.85),name='camera-'+new Date().toISOString().replace(/[:.]/g,'-')+'.jpg';
+photos.unshift({url,name});if(photos.length>12)photos.pop();render();status('촬영 OK · 총 '+photos.length+'장 (최근 12장)')}
+function render(){shots.replaceChildren();for(const p of photos){const d=document.createElement('div');d.className='shot';const img=document.createElement('img');img.src=p.url;img.alt='촬영 사진';const a=document.createElement('a');a.href=p.url;a.download=p.name;a.textContent='사진 저장';d.append(img,a);shots.append(d)}count.textContent=photos.length}
+captureBtn.onclick=capture;
+autoBtn.onclick=()=>{if(timer!==null){stopAuto();status('자동 촬영 중지');return}if(!stream)return;const ms=Number(intervalEl.value);timer=setInterval(capture,ms);autoBtn.textContent='자동 촬영 중지';status('자동 촬영 중 · '+ms/1000+'초 간격')}
+stopBtn.onclick=closeCamera;window.addEventListener('pagehide',closeCamera);
+</script></body></html>
