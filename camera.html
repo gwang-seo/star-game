@@ -13,13 +13,13 @@ small{color:#51667d}label{display:inline-flex;align-items:center;gap:8px}select{
 <a href="./index.html">← 스타게임으로</a><h1>📷 피지컬 AI 카메라</h1>
 <p>카메라를 켜면 이 기기에서 영상이 표시됩니다. 자동 촬영은 <b>사용자가 시작한 동안에만</b> 작동하며, 사진은 서버나 ChatGPT로 전송하지 않습니다.</p>
 <video id="preview" autoplay muted playsinline aria-label="실시간 카메라 영상"></video>
-<div class="actions"><button id="open">카메라 켜기</button><button id="capture" disabled>사진 촬영</button><button id="auto" disabled>자동 촬영 시작</button><button id="stop" disabled>카메라 끄기</button></div>
+<div class="actions"><button id="open">카메라 켜기</button><button id="capture" disabled>사진 촬영</button><button id="copyLatest" disabled>📋 최근 사진 복사</button><button id="auto" disabled>자동 촬영 시작</button><button id="stop" disabled>카메라 끄기</button></div>
 <label>자동 촬영 간격 <select id="interval"><option value="2000">2초</option><option value="5000" selected>5초</option><option value="10000">10초</option></select></label>
 <div id="status" role="status">카메라가 꺼져 있습니다.</div>
-<small>최대 12장까지 이 화면에 보관합니다. 사진의 '저장'을 누르면 내 기기에 저장됩니다. 이 페이지는 사진을 AI에 자동 전달하거나 모터를 제어하지 않습니다.</small>
+<small>최대 12장까지 이 화면에 보관합니다. 사진을 촬영한 뒤 '사진 복사'를 누르고 ChatGPT 채팅창에 Ctrl+V로 붙여넣으세요. 복사만으로 자동 전송되지는 않습니다.</small>
 <h2>촬영한 사진 (<span id="count">0</span>)</h2><div id="shots"></div>
 </main><script>
-const video=document.getElementById('preview'),openBtn=document.getElementById('open'),captureBtn=document.getElementById('capture'),autoBtn=document.getElementById('auto'),stopBtn=document.getElementById('stop'),statusEl=document.getElementById('status'),shots=document.getElementById('shots'),count=document.getElementById('count'),intervalEl=document.getElementById('interval');
+const video=document.getElementById('preview'),openBtn=document.getElementById('open'),captureBtn=document.getElementById('capture'),autoBtn=document.getElementById('auto'),stopBtn=document.getElementById('stop'),statusEl=document.getElementById('status'),shots=document.getElementById('shots'),count=document.getElementById('count'),intervalEl=document.getElementById('interval'),copyLatestBtn=document.getElementById('copyLatest');
 let stream=null,timer=null,photos=[];
 function status(s){statusEl.textContent=s}
 function stopAuto(){if(timer!==null){clearInterval(timer);timer=null}autoBtn.textContent='자동 촬영 시작'}
@@ -28,9 +28,15 @@ openBtn.onclick=async()=>{try{if(!navigator.mediaDevices?.getUserMedia)throw new
 function capture(){if(!stream||video.readyState<2||!video.videoWidth){status('영상 준비 중입니다.');return}
 const c=document.createElement('canvas');c.width=video.videoWidth;c.height=video.videoHeight;c.getContext('2d').drawImage(video,0,0);
 const url=c.toDataURL('image/jpeg',0.85),name='camera-'+new Date().toISOString().replace(/[:.]/g,'-')+'.jpg';
-photos.unshift({url,name});if(photos.length>12)photos.pop();render();status('촬영 OK · 총 '+photos.length+'장 (최근 12장)')}
-function render(){shots.replaceChildren();for(const p of photos){const d=document.createElement('div');d.className='shot';const img=document.createElement('img');img.src=p.url;img.alt='촬영 사진';const a=document.createElement('a');a.href=p.url;a.download=p.name;a.textContent='사진 저장';d.append(img,a);shots.append(d)}count.textContent=photos.length}
-captureBtn.onclick=capture;
+photos.unshift({url,name,png:c.toDataURL('image/png')});if(photos.length>12)photos.pop();render();status('촬영 OK · 총 '+photos.length+'장 (최근 12장)')}
+async function copyPhoto(p){try{
+if(!navigator.clipboard?.write||typeof ClipboardItem==='undefined')throw new Error('이 브라우저는 이미지 복사를 지원하지 않습니다.');
+const item=new ClipboardItem({'image/png':fetch(p.png).then(r=>r.blob())});
+await navigator.clipboard.write([item]);
+status('사진 복사 OK! ChatGPT 채팅창에서 Ctrl+V를 누르세요.');
+}catch(e){status('복사 실패: 브라우저의 클립보드 권한을 확인하세요. 사진 저장 후 채팅에 첨부할 수도 있습니다.');}}
+function render(){shots.replaceChildren();for(const p of photos){const d=document.createElement('div');d.className='shot';const img=document.createElement('img');img.src=p.url;img.alt='촬영 사진';const a=document.createElement('a');a.href=p.url;a.download=p.name;a.textContent='사진 저장';const copy=document.createElement('button');copy.textContent='📋 사진 복사';copy.style.marginTop='6px';copy.style.width='100%';copy.onclick=()=>copyPhoto(p);d.append(img,a,copy);shots.append(d)}count.textContent=photos.length;copyLatestBtn.disabled=photos.length===0}
+captureBtn.onclick=capture;copyLatestBtn.onclick=()=>{if(photos.length)copyPhoto(photos[0])};
 autoBtn.onclick=()=>{if(timer!==null){stopAuto();status('자동 촬영 중지');return}if(!stream)return;const ms=Number(intervalEl.value);timer=setInterval(capture,ms);autoBtn.textContent='자동 촬영 중지';status('자동 촬영 중 · '+ms/1000+'초 간격')}
 stopBtn.onclick=closeCamera;window.addEventListener('pagehide',closeCamera);
 </script></body></html>
