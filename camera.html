@@ -17,6 +17,23 @@ small{color:#51667d}label{display:inline-flex;align-items:center;gap:8px}select{
 <label>자동 촬영 간격 <select id="interval"><option value="2000">2초</option><option value="5000" selected>5초</option><option value="10000">10초</option></select></label>
 <div id="status" role="status">카메라가 꺼져 있습니다.</div>
 <small>최대 12장까지 이 화면에 보관합니다. 사진을 촬영한 뒤 '사진 복사'를 누르고 ChatGPT 채팅창에 Ctrl+V로 붙여넣으세요. 복사만으로 자동 전송되지는 않습니다.</small>
+<section id="publicShare" style="border:2px solid #bfd9f3;border-radius:15px;padding:16px;margin-top:20px">
+<h2>🌐 최근 사진 3장 공개 공유</h2>
+<p><b>주의:</b> 공개된 사진은 링크를 가진 누구나 볼 수 있습니다. 작업실, 얼굴, 화면의 개인정보를 확인하고 공유하세요. 카메라 자동 촬영과 별개로 <b>버튼을 눌러야만 업로드</b>됩니다.</p>
+<details><summary style="cursor:pointer;font-weight:bold">최초 1회: 공개 저장소(Cloudinary) 연결 설정</summary>
+<p style="font-size:14px">Cloudinary 계정의 Cloud name과 Unsigned upload preset을 입력하세요. API Secret은 입력하지 마세요. 설정은 이 브라우저에만 저장됩니다.</p>
+<label style="display:flex;flex-wrap:wrap;margin:8px 0">Cloud name <input id="cloudName" autocomplete="off" placeholder="Cloud name" style="padding:8px;max-width:220px"></label>
+<label style="display:flex;flex-wrap:wrap;margin:8px 0">Unsigned preset <input id="cloudPreset" autocomplete="off" placeholder="Upload preset" style="padding:8px;max-width:220px"></label>
+<button type="button" id="saveCloud">설정 저장</button>
+<p><a href="https://console.cloudinary.com/" target="_blank" rel="noopener noreferrer">Cloudinary 설정 페이지</a></p>
+</details>
+<div class="actions">
+<button id="publish3" type="button">📤 최근 사진 3장 공개하기</button>
+<button id="copyPublic" type="button" disabled>🔗 공유 링크 복사</button>
+<a class="link" id="openPublic" style="display:none" target="_blank" rel="noopener noreferrer">공개 사진 보기</a>
+</div>
+<div id="publicStatus" role="status">아직 공개된 사진이 없습니다.</div>
+</section>
 <h2>촬영한 사진 (<span id="count">0</span>)</h2><div id="shots"></div>
 </main><script>
 const video=document.getElementById('preview'),openBtn=document.getElementById('open'),captureBtn=document.getElementById('capture'),autoBtn=document.getElementById('auto'),stopBtn=document.getElementById('stop'),statusEl=document.getElementById('status'),shots=document.getElementById('shots'),count=document.getElementById('count'),intervalEl=document.getElementById('interval'),copyLatestBtn=document.getElementById('copyLatest');
@@ -64,4 +81,41 @@ window.addEventListener('message',e=>{
 aiBtn.onclick=()=>{if(aiTimer!==null){stopAI();status('AI 상태 확인 중지');return;}
  if(!stream)return;previousSignature=null;checkAI();aiTimer=setInterval(checkAI,30000);aiBtn.textContent='■ AI 상태 확인 중지';};
 stopBtn.onclick=closeCamera;window.addEventListener('pagehide',closeCamera);
+
+const shareStatus=document.getElementById('publicStatus');
+const pubBtn=document.getElementById('publish3'),copyPubBtn=document.getElementById('copyPublic'),openPub=document.getElementById('openPublic');
+const cloudNameInput=document.getElementById('cloudName'),presetInput=document.getElementById('cloudPreset');
+cloudNameInput.value=localStorage.getItem('star-cloud-name')||'';
+presetInput.value=localStorage.getItem('star-cloud-preset')||'';
+document.getElementById('saveCloud').onclick=()=>{
+ const name=cloudNameInput.value.trim(),preset=presetInput.value.trim();
+ if(!/^[a-zA-Z0-9_-]+$/.test(name)||!/^[a-zA-Z0-9_-]+$/.test(preset)){shareStatus.textContent='Cloud name 또는 preset을 확인하세요.';return;}
+ localStorage.setItem('star-cloud-name',name);localStorage.setItem('star-cloud-preset',preset);
+ shareStatus.textContent='설정 저장 OK · 공개하기 버튼을 눌러야 업로드됩니다.';
+};
+let latestPublicLink='';
+function encodeLinks(urls){const bytes=new TextEncoder().encode(JSON.stringify(urls));let str='';for(const b of bytes)str+=String.fromCharCode(b);return btoa(str).replace(/\\+/g,'-').replace(/\\//g,'_').replace(/=+$/,'');}
+async function uploadPhoto(p,name,preset){
+ const f=new FormData();const blob=await (await fetch(p.url)).blob();f.append('file',blob,p.name);f.append('upload_preset',preset);
+ const res=await fetch('https://api.cloudinary.com/v1_1/'+encodeURIComponent(name)+'/image/upload',{method:'POST',body:f});
+ const data=await res.json();if(!res.ok||!data.secure_url)throw Error(data.error?.message||'사진 업로드 실패');
+ return data.secure_url;
+}
+pubBtn.onclick=async()=>{
+ const name=cloudNameInput.value.trim(),preset=presetInput.value.trim();
+ if(!/^[a-zA-Z0-9_-]+$/.test(name)||!/^[a-zA-Z0-9_-]+$/.test(preset)){shareStatus.textContent='먼저 Cloudinary 연결 설정을 입력하세요.';return;}
+ if(photos.length<1){shareStatus.textContent='먼저 카메라에서 사진을 촬영하세요.';return;}
+ if(!confirm('최근 사진 최대 3장을 인터넷에 공개합니다. 공개를 진행할까요?'))return;
+ pubBtn.disabled=true;const urls=[];
+ try{
+  const selected=photos.slice(0,3).reverse();
+  for(let i=0;i<selected.length;i++){shareStatus.textContent='사진 공개 중 '+(i+1)+'/'+selected.length;urls.push(await uploadPhoto(selected[i],name,preset));}
+  latestPublicLink=new URL('./shared-photos.html',location.href).href+'#photos='+encodeLinks(urls);
+  copyPubBtn.disabled=false;openPub.style.display='inline-block';openPub.href=latestPublicLink;
+  shareStatus.textContent='공개 OK · 사진 '+urls.length+'장. 공유 링크를 복사해 ChatGPT에 보내세요.';
+ }catch(e){shareStatus.textContent='공개 실패: '+e.message+' (이미 업로드된 사진은 서비스에 남을 수 있습니다.)';}
+ finally{pubBtn.disabled=false;}
+};
+copyPubBtn.onclick=async()=>{if(!latestPublicLink)return;try{await navigator.clipboard.writeText(latestPublicLink);shareStatus.textContent='공유 링크 복사 OK · ChatGPT에 붙여넣으세요.';}catch(e){shareStatus.textContent='링크 복사 실패: 공개 사진 보기에서 주소를 복사하세요.';}};
+
 </script></body></html>
