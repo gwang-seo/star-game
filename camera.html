@@ -18,21 +18,16 @@ small{color:#51667d}label{display:inline-flex;align-items:center;gap:8px}select{
 <div id="status" role="status">카메라가 꺼져 있습니다.</div>
 <small>최대 12장까지 이 화면에 보관합니다. 사진을 촬영한 뒤 '사진 복사'를 누르고 ChatGPT 채팅창에 Ctrl+V로 붙여넣으세요. 복사만으로 자동 전송되지는 않습니다.</small>
 <section id="publicShare" style="border:2px solid #bfd9f3;border-radius:15px;padding:16px;margin-top:20px">
-<h2>🌐 최근 사진 3장 공개 공유</h2>
-<p><b>주의:</b> 공개된 사진은 링크를 가진 누구나 볼 수 있습니다. 작업실, 얼굴, 화면의 개인정보를 확인하고 공유하세요. 카메라 자동 촬영과 별개로 <b>버튼을 눌러야만 업로드</b>됩니다.</p>
-<details><summary style="cursor:pointer;font-weight:bold">최초 1회: 공개 저장소(Cloudinary) 연결 설정</summary>
-<p style="font-size:14px">Cloudinary 계정의 Cloud name과 Unsigned upload preset을 입력하세요. API Secret은 입력하지 마세요. 설정은 이 브라우저에만 저장됩니다.</p>
-<label style="display:flex;flex-wrap:wrap;margin:8px 0">Cloud name <input id="cloudName" autocomplete="off" placeholder="Cloud name" style="padding:8px;max-width:220px"></label>
-<label style="display:flex;flex-wrap:wrap;margin:8px 0">Unsigned preset <input id="cloudPreset" autocomplete="off" placeholder="Upload preset" style="padding:8px;max-width:220px"></label>
-<button type="button" id="saveCloud">설정 저장</button>
-<p><a href="https://console.cloudinary.com/" target="_blank" rel="noopener noreferrer">Cloudinary 설정 페이지</a></p>
+<h2>🌐 GitHub 최근 사진 3장 공개</h2>
+<p><b>공개 주의:</b> 사진은 공개 GitHub 저장소에 올라가며, 이전 버전도 Git 기록에 남을 수 있습니다. 얼굴이나 개인정보가 보이면 업로드하지 마세요.</p>
+<details><summary style="cursor:pointer;font-weight:bold">최초 설정: GitHub 업로드 토큰</summary>
+<p>GitHub에서 <b>Fine-grained personal access token</b>을 만들어 해당 <code>star-game</code> 저장소에만 <b>Contents: Read and write</b> 권한을 부여하세요. 이 페이지의 토큰은 서버나 저장소에 저장하지 않고 브라우저 메모리에만 둡니다. 새로고침하면 다시 입력해야 합니다.</p>
+<label style="display:block;margin:10px 0">GitHub 토큰 <input id="gitToken" type="password" autocomplete="off" placeholder="github_pat_..." style="padding:8px;max-width:100%;width:310px"></label>
+<a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener noreferrer">GitHub 토큰 만들기</a>
+<p><small>토큰을 ChatGPT 채팅이나 공개 페이지에 공유하지 마세요.</small></p>
 </details>
-<div class="actions">
-<button id="publish3" type="button">📤 최근 사진 3장 공개하기</button>
-<button id="copyPublic" type="button" disabled>🔗 공유 링크 복사</button>
-<a class="link" id="openPublic" style="display:none" target="_blank" rel="noopener noreferrer">공개 사진 보기</a>
-</div>
-<div id="publicStatus" role="status">아직 공개된 사진이 없습니다.</div>
+<div class="actions"><button id="publish3">📤 최근 사진 3장 GitHub에 공개</button><button id="copyPublic" disabled>🔗 공개 링크 복사</button><a class="link" id="openPublic" style="display:none" target="_blank" rel="noopener noreferrer">공개 사진 보기</a></div>
+<div id="publicStatus" role="status">아직 업로드하지 않았습니다.</div>
 </section>
 <h2>촬영한 사진 (<span id="count">0</span>)</h2><div id="shots"></div>
 </main><script>
@@ -84,38 +79,46 @@ stopBtn.onclick=closeCamera;window.addEventListener('pagehide',closeCamera);
 
 const shareStatus=document.getElementById('publicStatus');
 const pubBtn=document.getElementById('publish3'),copyPubBtn=document.getElementById('copyPublic'),openPub=document.getElementById('openPublic');
-const cloudNameInput=document.getElementById('cloudName'),presetInput=document.getElementById('cloudPreset');
-cloudNameInput.value=localStorage.getItem('star-cloud-name')||'';
-presetInput.value=localStorage.getItem('star-cloud-preset')||'';
-document.getElementById('saveCloud').onclick=()=>{
- const name=cloudNameInput.value.trim(),preset=presetInput.value.trim();
- if(!/^[a-zA-Z0-9_-]+$/.test(name)||!/^[a-zA-Z0-9_-]+$/.test(preset)){shareStatus.textContent='Cloud name 또는 preset을 확인하세요.';return;}
- localStorage.setItem('star-cloud-name',name);localStorage.setItem('star-cloud-preset',preset);
- shareStatus.textContent='설정 저장 OK · 공개하기 버튼을 눌러야 업로드됩니다.';
-};
-let latestPublicLink='';
-function encodeLinks(urls){const bytes=new TextEncoder().encode(JSON.stringify(urls));let str='';for(const b of bytes)str+=String.fromCharCode(b);return btoa(str).split('+').join('-').split('/').join('_').replace(/=+$/,'');}
-async function uploadPhoto(p,name,preset){
- const f=new FormData();const blob=await (await fetch(p.url)).blob();f.append('file',blob,p.name);f.append('upload_preset',preset);
- const res=await fetch('https://api.cloudinary.com/v1_1/'+encodeURIComponent(name)+'/image/upload',{method:'POST',body:f});
- const data=await res.json();if(!res.ok||!data.secure_url)throw Error(data.error?.message||'사진 업로드 실패');
- return data.secure_url;
+let latestPublicLink='https://gwang-seo.github.io/star-game/shared-photos.html';
+const apiBase='https://api.github.com/repos/gwang-seo/star-game/contents/';
+async function gitRequest(path,token,options={}){
+ const resp=await fetch(apiBase+path,{...options,headers:{'Accept':'application/vnd.github+json','Authorization':'Bearer '+token,'X-GitHub-Api-Version':'2022-11-28',...options.headers}});
+ if(resp.status===404&&options.method!=='PUT')return null;
+ const data=await resp.json().catch(()=>({}));
+ if(!resp.ok)throw Error(data.message||('GitHub 오류 '+resp.status));
+ return data;
+}
+async function uploadGitPhoto(p,slot,token){
+ // Fixed slots keep the public gallery stable. Commits are public and may retain prior images.
+ const path='public-camera/latest-'+slot+'.jpg';
+ const current=await gitRequest(path,token);
+ const content=p.url.split(',')[1];
+ const body={message:'Update public camera snapshot '+slot,content,branch:'main'};
+ if(current?.sha)body.sha=current.sha;
+ return gitRequest(path,token,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
 }
 pubBtn.onclick=async()=>{
- const name=cloudNameInput.value.trim(),preset=presetInput.value.trim();
- if(!/^[a-zA-Z0-9_-]+$/.test(name)||!/^[a-zA-Z0-9_-]+$/.test(preset)){shareStatus.textContent='먼저 Cloudinary 연결 설정을 입력하세요.';return;}
- if(photos.length<1){shareStatus.textContent='먼저 카메라에서 사진을 촬영하세요.';return;}
- if(!confirm('최근 사진 최대 3장을 인터넷에 공개합니다. 공개를 진행할까요?'))return;
- pubBtn.disabled=true;const urls=[];
+ const token=document.getElementById('gitToken').value.trim();
+ if(!token){shareStatus.textContent='GitHub 토큰을 먼저 입력하세요. (Cloudinary는 사용하지 않습니다.)';return;}
+ if(!photos.length){shareStatus.textContent='먼저 사진을 촬영하세요.';return;}
+ if(!confirm('최근 사진 최대 3장을 공개 GitHub 저장소에 업로드합니다. 이전 사진도 Git 기록에 남을 수 있습니다. 계속할까요?'))return;
+ pubBtn.disabled=true;
  try{
-  const selected=photos.slice(0,3).reverse();
-  for(let i=0;i<selected.length;i++){shareStatus.textContent='사진 공개 중 '+(i+1)+'/'+selected.length;urls.push(await uploadPhoto(selected[i],name,preset));}
-  latestPublicLink=new URL('./shared-photos.html',location.href).href+'#photos='+encodeLinks(urls);
-  copyPubBtn.disabled=false;openPub.style.display='inline-block';openPub.href=latestPublicLink;
-  shareStatus.textContent='공개 OK · 사진 '+urls.length+'장. 공유 링크를 복사해 ChatGPT에 보내세요.';
- }catch(e){shareStatus.textContent='공개 실패: '+e.message+' (이미 업로드된 사진은 서비스에 남을 수 있습니다.)';}
+  const selected=photos.slice(0,3);
+  for(let i=0;i<selected.length;i++){shareStatus.textContent='GitHub 공개 업로드 '+(i+1)+'/'+selected.length;await uploadGitPhoto(selected[i],i+1,token);}
+  // Display count recorded in public metadata; missing old slots are excluded.
+  const metadata={updated_at:new Date().toISOString(),count:selected.length};
+  const metaPath='public-camera/latest.json';
+  const old=await gitRequest(metaPath,token);
+  const bytes=new TextEncoder().encode(JSON.stringify(metadata)),chunks=[];for(let i=0;i<bytes.length;i+=8192)chunks.push(String.fromCharCode(...bytes.slice(i,i+8192)));
+  const body={message:'Update public camera gallery metadata',content:btoa(chunks.join('')),branch:'main'};
+  if(old?.sha)body.sha=old.sha;
+  await gitRequest(metaPath,token,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  latestPublicLink='https://gwang-seo.github.io/star-game/shared-photos.html';
+  copyPubBtn.disabled=false;openPub.href=latestPublicLink;openPub.style.display='inline-block';
+  shareStatus.textContent='GitHub 공개 완료 · 최근 사진 '+selected.length+'장 · 페이지 반영까지 약간 지연될 수 있습니다.';
+ }catch(e){shareStatus.textContent='공개 실패: '+e.message+' · 이미 업로드된 사진은 GitHub에 남을 수 있습니다.';}
  finally{pubBtn.disabled=false;}
 };
-copyPubBtn.onclick=async()=>{if(!latestPublicLink)return;try{await navigator.clipboard.writeText(latestPublicLink);shareStatus.textContent='공유 링크 복사 OK · ChatGPT에 붙여넣으세요.';}catch(e){shareStatus.textContent='링크 복사 실패: 공개 사진 보기에서 주소를 복사하세요.';}};
-
+copyPubBtn.onclick=async()=>{try{await navigator.clipboard.writeText(latestPublicLink);shareStatus.textContent='공개 링크 복사 OK';}catch(e){shareStatus.textContent='복사 실패 · 공개 사진 보기 링크를 여세요.';}};
 </script></body></html>
