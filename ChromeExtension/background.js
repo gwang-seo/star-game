@@ -54,3 +54,17 @@ chrome.runtime.onMessage.addListener((m,s,reply)=>{
  }
  if(m?.type==='get-answer'){chrome.storage.local.get(['latestAnswer','latestAt','connectDiagnostic'],r=>reply({text:r.latestAnswer||'',at:r.latestAt||0,diagnostic:r.connectDiagnostic||''}));return true;}
 });
+
+
+// Camera sharing occurs only after the user activates AI state checking.
+chrome.runtime.onMessage.addListener((m,s,reply)=>{
+ if(m?.type!=='ai-camera-frame')return false;
+ if(!/^https:\/\/(gwang-seo\.github\.io\/star-game|star-game1234\.netlify\.app)\//.test(s.url||'')){reply({ok:false,message:'카메라 주소 확인 실패'});return false;}
+ (async()=>{
+  const tabs=await chrome.tabs.query({url:['https://chatgpt.com/*','https://chat.openai.com/*']});
+  const tab=tabs.find(t=>t.active)||tabs[0];
+  if(!tab?.id)return {ok:false,message:'ChatGPT 브라우저 탭을 열어 주세요.'};
+  return await chrome.tabs.sendMessage(tab.id,{type:'ai-camera-upload',id:m.id,jpeg:m.jpeg});
+ })().then(reply).catch(e=>reply({ok:false,message:'공유 실패: '+e.message}));
+ return true;
+});
