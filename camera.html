@@ -11,20 +11,20 @@ button:disabled{background:#9aa8b7;cursor:not-allowed}#stop{background:#8a3550}#
 small{color:#51667d}label{display:inline-flex;align-items:center;gap:8px}select{font-size:16px;padding:6px}
 </style></head><body><main>
 <a href="./index.html">← 스타게임으로</a><h1>📷 피지컬 AI 카메라</h1>
-<p>카메라를 켜면 이 기기에서 영상이 표시됩니다. 자동 촬영은 <b>사용자가 시작한 동안에만</b> 작동하며, 사진은 서버나 ChatGPT로 전송하지 않습니다.</p>
+<p>카메라를 켜면 이 기기에서 영상이 표시됩니다. 자동 촬영은 <b>사용자가 시작한 동안에만</b> 작동하며, 기본 촬영 사진은 외부로 전송하지 않습니다. <b>AI 상태 확인 시작</b>을 직접 누르면 30초마다 변화량을 확인하고, 변화가 클 때만 ChatGPT 확장 프로그램에 사진을 전달합니다.</p>
 <video id="preview" autoplay muted playsinline aria-label="실시간 카메라 영상"></video>
-<div class="actions"><button id="open">카메라 켜기</button><button id="capture" disabled>사진 촬영</button><button id="copyLatest" disabled>📋 최근 사진 복사</button><button id="auto" disabled>자동 촬영 시작</button><button id="stop" disabled>카메라 끄기</button></div>
+<div class="actions"><button id="open">카메라 켜기</button><button id="capture" disabled>사진 촬영</button><button id="copyLatest" disabled>📋 최근 사진 복사</button><button id="auto" disabled>자동 촬영 시작</button><button id="aiCheck" disabled>🤖 AI 상태 확인 시작 (30초)</button><button id="stop" disabled>카메라 끄기</button></div>
 <label>자동 촬영 간격 <select id="interval"><option value="2000">2초</option><option value="5000" selected>5초</option><option value="10000">10초</option></select></label>
 <div id="status" role="status">카메라가 꺼져 있습니다.</div>
 <small>최대 12장까지 이 화면에 보관합니다. 사진을 촬영한 뒤 '사진 복사'를 누르고 ChatGPT 채팅창에 Ctrl+V로 붙여넣으세요. 복사만으로 자동 전송되지는 않습니다.</small>
 <h2>촬영한 사진 (<span id="count">0</span>)</h2><div id="shots"></div>
 </main><script>
 const video=document.getElementById('preview'),openBtn=document.getElementById('open'),captureBtn=document.getElementById('capture'),autoBtn=document.getElementById('auto'),stopBtn=document.getElementById('stop'),statusEl=document.getElementById('status'),shots=document.getElementById('shots'),count=document.getElementById('count'),intervalEl=document.getElementById('interval'),copyLatestBtn=document.getElementById('copyLatest');
-let stream=null,timer=null,photos=[];
+let stream=null,timer=null,photos=[],aiTimer=null,previousSignature=null,aiBusy=false;const aiBtn=document.getElementById('aiCheck');
 function status(s){statusEl.textContent=s}
 function stopAuto(){if(timer!==null){clearInterval(timer);timer=null}autoBtn.textContent='자동 촬영 시작'}
-function closeCamera(){stopAuto();if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}video.srcObject=null;openBtn.disabled=false;captureBtn.disabled=true;autoBtn.disabled=true;stopBtn.disabled=true;status('카메라가 꺼져 있습니다.')}
-openBtn.onclick=async()=>{try{if(!navigator.mediaDevices?.getUserMedia)throw new Error('HTTPS 환경 또는 지원 브라우저가 필요합니다.');stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'},audio:false});video.srcObject=stream;await video.play();openBtn.disabled=true;captureBtn.disabled=false;autoBtn.disabled=false;stopBtn.disabled=false;status('카메라 연결 OK');stream.getVideoTracks()[0].addEventListener('ended',closeCamera)}catch(e){status('카메라 연결 실패: '+e.message);closeCamera();status('카메라 권한과 다른 앱의 카메라 사용 여부를 확인하세요.')}}
+function closeCamera(){stopAI();stopAuto();if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}video.srcObject=null;openBtn.disabled=false;captureBtn.disabled=true;autoBtn.disabled=true;aiBtn.disabled=true;stopBtn.disabled=true;status('카메라가 꺼져 있습니다.')}
+openBtn.onclick=async()=>{try{if(!navigator.mediaDevices?.getUserMedia)throw new Error('HTTPS 환경 또는 지원 브라우저가 필요합니다.');stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'},audio:false});video.srcObject=stream;await video.play();openBtn.disabled=true;captureBtn.disabled=false;autoBtn.disabled=false;aiBtn.disabled=false;stopBtn.disabled=false;status('카메라 연결 OK');stream.getVideoTracks()[0].addEventListener('ended',closeCamera)}catch(e){status('카메라 연결 실패: '+e.message);closeCamera();status('카메라 권한과 다른 앱의 카메라 사용 여부를 확인하세요.')}}
 function capture(){if(!stream||video.readyState<2||!video.videoWidth){status('영상 준비 중입니다.');return}
 const c=document.createElement('canvas');c.width=video.videoWidth;c.height=video.videoHeight;c.getContext('2d').drawImage(video,0,0);
 const url=c.toDataURL('image/jpeg',0.85),name='camera-'+new Date().toISOString().replace(/[:.]/g,'-')+'.jpg';
@@ -38,5 +38,30 @@ status('사진 복사 OK! ChatGPT 채팅창에서 Ctrl+V를 누르세요.');
 function render(){shots.replaceChildren();for(const p of photos){const d=document.createElement('div');d.className='shot';const img=document.createElement('img');img.src=p.url;img.alt='촬영 사진';const a=document.createElement('a');a.href=p.url;a.download=p.name;a.textContent='사진 저장';const copy=document.createElement('button');copy.textContent='📋 사진 복사';copy.style.marginTop='6px';copy.style.width='100%';copy.onclick=()=>copyPhoto(p);d.append(img,a,copy);shots.append(d)}count.textContent=photos.length;copyLatestBtn.disabled=photos.length===0}
 captureBtn.onclick=capture;copyLatestBtn.onclick=()=>{if(photos.length)copyPhoto(photos[0])};
 autoBtn.onclick=()=>{if(timer!==null){stopAuto();status('자동 촬영 중지');return}if(!stream)return;const ms=Number(intervalEl.value);timer=setInterval(capture,ms);autoBtn.textContent='자동 촬영 중지';status('자동 촬영 중 · '+ms/1000+'초 간격')}
+
+function stopAI(){if(aiTimer!==null)clearInterval(aiTimer);aiTimer=null;previousSignature=null;aiBusy=false;aiBtn.textContent='🤖 AI 상태 확인 시작 (30초)';}
+function checkAI(){
+ if(!stream||video.readyState<2||!video.videoWidth||aiBusy)return;
+ const t=document.createElement('canvas');t.width=48;t.height=36;
+ const ctx=t.getContext('2d',{willReadFrequently:true});ctx.drawImage(video,0,0,48,36);
+ const rgba=ctx.getImageData(0,0,48,36).data;
+ const signature=[];for(let y=0;y<36;y+=2)for(let x=0;x<48;x+=2){const i=(y*48+x)*4;signature.push((rgba[i]+rgba[i+1]+rgba[i+2])/3);}
+ let difference=100;
+ if(previousSignature){let sum=0;for(let i=0;i<signature.length;i++)sum+=Math.abs(signature[i]-previousSignature[i]);difference=100*sum/signature.length/255;}
+ previousSignature=signature;
+ if(difference<8){status('상태 확인 OK · 변화 없음 ('+difference.toFixed(1)+'%) · 사진 미전송');return;}
+ const canvas=document.createElement('canvas');const w=Math.min(video.videoWidth,960);canvas.width=w;canvas.height=Math.round(w*video.videoHeight/video.videoWidth);
+ canvas.getContext('2d').drawImage(video,0,0,canvas.width,canvas.height);
+ aiBusy=true;const id=Date.now().toString(36);
+ window.postMessage({source:'star-game-camera',type:'AI_FRAME',id,jpeg:canvas.toDataURL('image/jpeg',0.65)},location.origin);
+ status('변화 감지 ('+difference.toFixed(1)+'%) · AI 사진 공유 요청');
+ setTimeout(()=>{if(aiBusy){aiBusy=false;status('AI 연결 확인 시간 초과 · Chrome 확장을 확인하세요.');}},20000);
+}
+window.addEventListener('message',e=>{
+ if(e.source!==window||e.origin!==location.origin||e.data?.source!=='star-game-extension'||e.data?.type!=='AI_FRAME_STATUS')return;
+ aiBusy=false;status(e.data.message||'공유 결과 확인 필요');
+});
+aiBtn.onclick=()=>{if(aiTimer!==null){stopAI();status('AI 상태 확인 중지');return;}
+ if(!stream)return;previousSignature=null;checkAI();aiTimer=setInterval(checkAI,30000);aiBtn.textContent='■ AI 상태 확인 중지';};
 stopBtn.onclick=closeCamera;window.addEventListener('pagehide',closeCamera);
 </script></body></html>
