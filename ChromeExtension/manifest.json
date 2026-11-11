@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "CONNECT ChatGPT 답변 연결",
-  "version": "1.5.0",
-  "description": "ChatGPT 최신 답변 자동 전송, 수동 버튼 유지, A1 음성 읽기",
+  "version": "1.6.0",
+  "description": "CONNECT 답변 연동 + 상태 변화시 카메라 사진 공유",
   "permissions": [
     "storage",
     "tabs",
@@ -11,7 +11,8 @@
   "host_permissions": [
     "https://chatgpt.com/*",
     "https://chat.openai.com/*",
-    "https://star-game1234.netlify.app/*"
+    "https://star-game1234.netlify.app/*",
+    "https://gwang-seo.github.io/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -23,16 +24,19 @@
         "https://chat.openai.com/*"
       ],
       "js": [
-        "chatgpt.js"
+        "chatgpt.js",
+        "chatgpt-camera.js"
       ],
       "run_at": "document_idle"
     },
     {
       "matches": [
-        "https://star-game1234.netlify.app/*"
+        "https://star-game1234.netlify.app/*",
+        "https://gwang-seo.github.io/star-game/*"
       ],
       "js": [
-        "star-game.js"
+        "star-game.js",
+        "camera-bridge.js"
       ],
       "run_at": "document_idle"
     }
