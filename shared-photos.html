@@ -1,0 +1,10 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>스타게임 공개 카메라 사진</title><style>body{background:#eaf5ff;color:#16335b;font-family:Arial,'Malgun Gothic',sans-serif;margin:0;padding:24px}main{max-width:850px;margin:auto}img{max-width:100%;height:auto;border-radius:12px}figure{background:white;padding:12px;border-radius:16px;box-shadow:0 5px 20px #2342}a{color:#155aa7}h1{font-size:25px}</style></head><body><main><h1>📷 스타게임 공개 사진</h1><p>공개 링크를 받은 누구나 사진을 확인할 수 있습니다.</p><div id="gallery">사진 링크를 확인 중입니다.</div></main><script>
+const gallery=document.getElementById('gallery');
+try{
+ const value=location.hash.match(/^#photos=([A-Za-z0-9_-]+)$/)?.[1];if(!value)throw Error('공유 사진이 없습니다.');
+ const raw=atob(value.replace(/-/g,'+').replace(/_/g,'/'));const bytes=Uint8Array.from(raw,c=>c.charCodeAt(0));
+ const urls=JSON.parse(new TextDecoder().decode(bytes));
+ if(!Array.isArray(urls)||urls.length>3||!urls.length||!urls.every(u=>{try{const x=new URL(u);return x.protocol==='https:'&&x.hostname==='res.cloudinary.com'&&x.pathname.includes('/image/upload/')}catch{return false}}))throw Error('올바르지 않은 공유 링크입니다.');
+ gallery.replaceChildren();urls.forEach((url,i)=>{const fig=document.createElement('figure'),cap=document.createElement('figcaption'),img=document.createElement('img'),link=document.createElement('a');img.src=url;img.alt='공개 사진 '+(i+1);img.loading='lazy';link.href=url;link.target='_blank';link.rel='noopener noreferrer';link.textContent='원본 사진 열기';cap.textContent='사진 '+(i+1)+' · ';cap.append(link);fig.append(img,cap);gallery.append(fig);});
+}catch(e){gallery.textContent=e.message}
+</script></body></html>
