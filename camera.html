@@ -94,7 +94,7 @@ document.getElementById('saveCloud').onclick=()=>{
  shareStatus.textContent='설정 저장 OK · 공개하기 버튼을 눌러야 업로드됩니다.';
 };
 let latestPublicLink='';
-function encodeLinks(urls){const bytes=new TextEncoder().encode(JSON.stringify(urls));let str='';for(const b of bytes)str+=String.fromCharCode(b);return btoa(str).replace(/\\+/g,'-').replace(/\\//g,'_').replace(/=+$/,'');}
+function encodeLinks(urls){const bytes=new TextEncoder().encode(JSON.stringify(urls));let str='';for(const b of bytes)str+=String.fromCharCode(b);return btoa(str).split('+').join('-').split('/').join('_').replace(/=+$/,'');}
 async function uploadPhoto(p,name,preset){
  const f=new FormData();const blob=await (await fetch(p.url)).blob();f.append('file',blob,p.name);f.append('upload_preset',preset);
  const res=await fetch('https://api.cloudinary.com/v1_1/'+encodeURIComponent(name)+'/image/upload',{method:'POST',body:f});
