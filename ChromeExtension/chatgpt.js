@@ -9,13 +9,13 @@ function extract(){
   const parts=[...el.querySelectorAll('.markdown,.prose,[data-testid="message-text"]')];
   if(parts.length&&sel!=='main [class*="markdown"]'&&sel!=='main .prose')el=parts.at(-1);
   const text=(el.innerText||el.textContent||'').trim();
-  if(text.length>1)return text.slice(0,10000);
+  if(text.length>=1)return text.slice(0,10000);
  }
  return '';
 }
 let last='',lastManualAt=0;
 function save(text,reason){
- if(!text||text.length<2)return false;
+ if(!text||text.trim().length<1)return false;
  last=text.slice(0,10000);
  if(reason.includes('직접 전송'))lastManualAt=Date.now();
  chrome.storage.local.set({latestAnswer:last,latestAt:Date.now(),connectDiagnostic:reason},()=>void chrome.runtime.lastError);
