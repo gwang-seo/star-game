@@ -18,7 +18,7 @@ function extractLastAssistant(){
   const root=nodes[i];
   const messages=[...root.querySelectorAll('.markdown, .prose, [data-testid="message-text"]')];
   let txt=messages.length?messages.map(clean).filter(Boolean).join('\n'):clean(root);
-  if(txt&&txt.length>1)return txt.slice(0,10000);
+  if(txt&&txt.length>=1)return txt.slice(0,10000);
  }
  return '';
 }
