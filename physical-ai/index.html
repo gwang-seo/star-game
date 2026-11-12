@@ -99,7 +99,7 @@ $('buzzTest').onclick=async()=>{
  }
 };
 // Existing Chrome extension populates #speechText and fires input on a new latestAt.
-let autoEnabled=true,hasBaseline=false,baselineText='',lastProcessed='',receivedTimer=null;
+let autoEnabled=true,hasBaseline=false,baselineText='',lastProcessed='',receivedTimer=null;const pageOpenedAt=Date.now();
 let beepPatternBusy=false,beepPatternToken=0;
 const autoStatus=t=>{$('autoStatus').textContent=t;log(t);};
 const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
@@ -137,7 +137,7 @@ async function beepAnswer(kind){
 function acceptAnswer(t){
  if(!autoEnabled)return;
  const text=String(t||'').trim();
- if(!hasBaseline){hasBaseline=true;baselineText=text;autoStatus('기존 답변은 건너뛰었습니다. 이제 새 ChatGPT 답변을 기다립니다.');return;}
+ if(!hasBaseline){hasBaseline=true;if(Date.now()-pageOpenedAt<4000){baselineText=text;autoStatus('기존 답변은 건너뛰었습니다. 이제 새 ChatGPT 답변을 기다립니다.');return;}autoStatus('첫 새 답변 수신 · 분석 중');}
  if(!text||text===baselineText||text===lastProcessed)return;
  clearTimeout(receivedTimer);
  receivedTimer=setTimeout(()=>{
