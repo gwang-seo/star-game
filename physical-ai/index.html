@@ -7,7 +7,7 @@
 <a href="../index.html">← 스타게임 돌아가기</a>
 <h1>🤖 Physical AI CONNECT v1</h1>
 <p>AI 명령 해석 연습 · 중복 실행 방지 · 음성 안내</p>
-<div class="notice"><b>현재 기본 모드는 시뮬레이션입니다.</b> 실제 모터로 자동 명령을 보내지 않습니다. CONNECT 하드웨어는 검증된 기존 제어 페이지에서 별도로 시험하세요.</div>
+<div class="notice"><b>AI 방향 명령은 아직 시뮬레이션입니다.</b> 아래에서 DC 모터 실제 시험이 가능합니다. 방향·속도 값 검증 후 AI 명령과 연동합니다.</div>
 <section><label for="cmd"><b>로봇 명령 입력</b></label>
 <textarea id="cmd" rows="3" placeholder="예: 오른쪽으로 3초 움직여"></textarea>
 <div class="row"><button id="execute">▶ 명령 실행</button><button id="stop" class="danger">■ 정지</button><button id="voice" class="sub">🔈 음성 켜기</button></div>
@@ -19,8 +19,16 @@
 <section><h2>🔌 USB 자동 연결 (기존 COM22 장치)</h2>
 <p class="notice">이 페이지를 열면 이미 허용한 USB 시리얼 장치에 자동 연결을 시도합니다. 최초 방문 시에는 아래 버튼으로 <b>COM22 (CP210x)</b> 장치를 한 번 선택하세요. 브라우저에서는 COM 번호를 직접 판별할 수 없습니다.</p>
 <div class="row"><button id="serialGrant">🔌 최초 USB 연결 허용</button><button id="serialClose" class="sub" disabled>연결 해제</button></div>
-<p id="serialState" class="status" role="status">USB 연결 확인 중…</p><p><small>실제 모터 제어 명령은 전송하지 않습니다. 기존 CONNECT 제어 페이지와 동시에 같은 포트를 열 수 없습니다.</small></p></section>
-<section><h2>🧪 실물 모터·A1·부저 테스트</h2><p>아래 기존 CONNECT 제어 페이지에서 하드웨어를 시험할 수 있습니다. 모터의 방향·속도 바이트는 검증되지 않았으므로 시뮬레이션의 명령은 실제 장치로 보내지 않습니다.</p><a href="../connect.html">기존 CONNECT 하드웨어 제어 페이지 열기</a></section><footer><p><small>기존 스타게임과 카메라 페이지는 변경하지 않았습니다. 판매·결제 및 라이선스 기능은 아직 없습니다.</small></p></footer>
+<p id="serialState" class="status" role="status">USB 연결 확인 중…</p><p><small>기존 CONNECT 페이지와 동시에 같은 포트를 열 수 없습니다.</small></p></section>
+<section><h2>⚙️ 실제 DC 모터 0.2초 시험</h2>
+<p class="notice">안전 시험: 바퀴를 공중에 띄우세요. 방향/속도 값은 미검증입니다. 시험 바이트 1이 저속이라는 보장은 없습니다. 연결 후 버튼을 직접 눌러야 동작합니다.</p>
+<label for="dcChannel">모터 선택</label>
+<select id="dcChannel" style="padding:10px;font-size:16px;border-radius:9px"><option value="1">DC1</option><option value="2">DC2</option><option value="3">DC3</option><option value="4">DC4</option></select>
+<label for="dcValue">시험 바이트 (0~255)</label>
+<input id="dcValue" type="number" min="0" max="255" value="1" style="padding:10px;width:110px;font-size:16px;border-radius:9px">
+<div class="row"><button id="dcTest" disabled>▶ 실제 모터 0.2초 시험</button><button id="dcStop" class="danger" disabled>■ 실제 모터 정지</button></div>
+<p id="dcStatus" role="status">USB 연결 대기</p></section>
+<section><h2>🧪 A1·부저 추가 테스트</h2><p>기존 CONNECT 페이지에서 A1과 부저를 시험할 수 있습니다.</p><a href="../connect.html">기존 CONNECT 하드웨어 제어 페이지 열기</a></section><footer><p><small>기존 스타게임과 카메라 페이지는 변경하지 않았습니다. 판매·결제 및 라이선스 기능은 아직 없습니다.</small></p></footer>
 </main><script>
 'use strict';
 const $=id=>document.getElementById(id);
@@ -36,20 +44,52 @@ $('stop').onclick=halt;
 $('voice').onclick=()=>{voice=!voice;$('voice').textContent=voice?'🔊 음성 켜짐':'🔈 음성 켜기';if(voice)speak('음성 안내를 시작합니다.');};
 document.querySelectorAll('[data-cmd]').forEach(b=>b.onclick=()=>{$('cmd').value=b.dataset.cmd;execute(b.dataset.cmd);});
 // Web Serial permissions are origin-specific. COM22 names are not exposed to pages.
-let serialPort=null,serialBusy=false;
+let serialPort=null,serialBusy=false,serialWriter=null,txQueue=Promise.resolve(),txPulse=null,dcTimer=null,dcSequence=0,serialFrame=null;
 const serialState=message=>$('serialState').textContent=message;
-function serialControls(connected){$('serialGrant').disabled=connected;$('serialClose').disabled=!connected;}
+function serialControls(connected){$('serialGrant').disabled=connected;$('serialClose').disabled=!connected;$('dcTest').disabled=!connected;$('dcStop').disabled=!connected;}
 function savedIdentity(){try{return JSON.parse(localStorage.getItem('connect-usb-info')||'null');}catch(_){return null;}}
 function rememberPort(p){try{localStorage.setItem('connect-usb-info',JSON.stringify(p.getInfo()));}catch(_){}}
+function dcPacket(channel=0,value=0){
+ const b=new Uint8Array(22);b[0]=0xAD;b[1]=0xDA;b[2]=19;b[3]=0xF0;b[14]=100;
+ if(channel>0)b[7+channel]=value;
+ let checksum=0;for(let i=3;i<21;i++)checksum=(checksum+b[i])&255;b[21]=checksum;
+ return b;
+}
+function sendSerial(bytes){
+ txQueue=txQueue.catch(()=>{}).then(async()=>{if(!serialWriter)throw new Error('USB 연결 없음');await serialWriter.write(bytes);});
+ return txQueue;
+}
+function setMotorFrame(b){serialFrame=b;return sendSerial(b);}
+async function stopMotor(){
+ clearTimeout(dcTimer);dcSequence++;
+ if(!serialWriter)return;
+ try{await setMotorFrame(dcPacket());$('dcStatus').textContent='실제 모터 정지 명령 전송';}
+ catch(e){$('dcStatus').textContent='모터 정지 오류: '+e.message;}
+}
+$('dcStop').onclick=()=>stopMotor();
+$('dcTest').onclick=async()=>{
+ if(!serialWriter){$('dcStatus').textContent='먼저 USB 연결 필요';return;}
+ if(dcTimer){$('dcStatus').textContent='시험 중입니다. 중복 실행 차단';return;}
+ const ch=Number($('dcChannel').value),val=Number($('dcValue').value);
+ if(!Number.isInteger(val)||val<0||val>255){$('dcStatus').textContent='바이트는 0~255의 정수만 입력';return;}
+ const my=++dcSequence;$('dcTest').disabled=true;
+ try{
+  await setMotorFrame(dcPacket(ch,val));
+  $('dcStatus').textContent='DC'+ch+' 바이트 '+val+' 전송 · 0.2초 후 정지';
+  dcTimer=setTimeout(()=>{dcTimer=null;if(my===dcSequence)stopMotor().finally(()=>{$('dcTest').disabled=!serialPort;});},200);
+ }catch(e){dcTimer=null;$('dcTest').disabled=false;$('dcStatus').textContent='시험 오류: '+e.message;await stopMotor();}
+};
 async function openSerial(p){
  if(serialBusy||serialPort)return;
  serialBusy=true;serialState('USB 포트 여는 중…');
  try{
    await p.open({baudRate:115200,dataBits:8,stopBits:1,parity:'none',flowControl:'none'});
-   serialPort=p;rememberPort(p);serialControls(true);
+   serialPort=p;serialWriter=p.writable.getWriter();await sendSerial(Uint8Array.of(0x63,0x36));serialFrame=dcPacket();await sendSerial(serialFrame);
+   txPulse=setInterval(()=>{if(serialWriter&&serialFrame)sendSerial(serialFrame.slice()).catch(e=>{clearInterval(txPulse);$('dcStatus').textContent='통신 오류: '+e.message;});},120);
+   rememberPort(p);serialControls(true);$('dcStatus').textContent='연결 완료 · 실제 모터 시험 가능';
    const info=p.getInfo();
    serialState('USB 연결 성공 · 115200bps · '+(info.usbVendorId!==undefined?'USB ID '+info.usbVendorId.toString(16):'시리얼 장치')+' · 명령 전송 대기');
-   log('USB 포트 연결됨 (모터 명령 미전송)');
+   log('USB 포트 연결 및 초기화 명령 전송됨');
  }catch(e){serialState('연결 실패: '+e.message+' · 기존 CONNECT 페이지나 다른 프로그램에서 사용 중인지 확인하세요.');}
  finally{serialBusy=false;}
 }
@@ -71,16 +111,16 @@ $('serialGrant').onclick=async()=>{
 };
 $('serialClose').onclick=async()=>{
  if(!serialPort)return;
- const p=serialPort;serialPort=null;serialControls(false);
- try{await p.close();serialState('USB 연결 해제');log('USB 연결 해제');}
+ const p=serialPort;clearInterval(txPulse);clearTimeout(dcTimer);await stopMotor();serialPort=null;serialControls(false);
+ try{await txQueue.catch(()=>{});if(serialWriter){serialWriter.releaseLock();serialWriter=null;}await p.close();serialState('USB 연결 해제');log('USB 연결 해제');}
  catch(e){serialState('해제 오류: '+e.message);}
 };
 if('serial' in navigator){
  navigator.serial.addEventListener('disconnect',event=>{
-   if(serialPort&&event.target===serialPort){serialPort=null;serialControls(false);serialState('USB 연결 끊김');}
+   if(serialPort&&event.target===serialPort){clearInterval(txPulse);clearTimeout(dcTimer);serialPort=null;serialWriter=null;serialControls(false);serialState('USB 연결 끊김');}
  });
  navigator.serial.addEventListener('connect',()=>{if(!serialPort&&!serialBusy)autoConnect();});
 }
 autoConnect();
-window.addEventListener('pagehide',()=>{clearTimeout(timer);try{speechSynthesis.cancel();}catch(_){}if(serialPort)serialPort.close().catch(()=>{});});
+window.addEventListener('pagehide',()=>{clearTimeout(timer);try{speechSynthesis.cancel();}catch(_){}clearInterval(txPulse);clearTimeout(dcTimer);if(serialPort&&serialWriter){serialFrame=dcPacket();sendSerial(serialFrame).catch(()=>{});}});
 </script></body></html>
