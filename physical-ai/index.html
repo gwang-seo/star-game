@@ -16,8 +16,11 @@
 <section><h2>🧪 테스트</h2><div class="row"><button class="sub" data-cmd="네">네 → 오른쪽</button><button class="sub" data-cmd="아니오">아니오 → 왼쪽</button><button class="sub" data-cmd="오른쪽으로 3초 움직여">오른쪽 3초</button><button class="sub" data-cmd="정지해">정지</button></div>
 <p><small>한 번 실행한 같은 명령은 동작 중 재실행되지 않습니다. 실제 안전장치와는 별개의 웹 시뮬레이션입니다.</small></p></section>
 <section><h2>📋 실행 기록</h2><div id="log" aria-live="polite">시뮬레이션 준비 완료</div></section>
-<section><h2>🔌 실물 CONNECT 연결</h2><p>기존 Web Serial CONNECT 페이지에서 포트 선택, A1 버튼, 부저 및 제한된 DC 모터 시험을 할 수 있습니다. 모터의 방향·속도 바이트는 검증되지 않았으므로 이 시뮬레이터와 연결하지 않았습니다.</p><a href="../connect.html">기존 CONNECT 하드웨어 제어 페이지 열기</a></section>
-<footer><p><small>기존 스타게임과 카메라 페이지는 변경하지 않았습니다. 판매·결제 및 라이선스 기능은 아직 없습니다.</small></p></footer>
+<section><h2>🔌 USB 자동 연결 (기존 COM22 장치)</h2>
+<p class="notice">이 페이지를 열면 이미 허용한 USB 시리얼 장치에 자동 연결을 시도합니다. 최초 방문 시에는 아래 버튼으로 <b>COM22 (CP210x)</b> 장치를 한 번 선택하세요. 브라우저에서는 COM 번호를 직접 판별할 수 없습니다.</p>
+<div class="row"><button id="serialGrant">🔌 최초 USB 연결 허용</button><button id="serialClose" class="sub" disabled>연결 해제</button></div>
+<p id="serialState" class="status" role="status">USB 연결 확인 중…</p><p><small>실제 모터 제어 명령은 전송하지 않습니다. 기존 CONNECT 제어 페이지와 동시에 같은 포트를 열 수 없습니다.</small></p></section>
+<section><h2>🧪 실물 모터·A1·부저 테스트</h2><p>아래 기존 CONNECT 제어 페이지에서 하드웨어를 시험할 수 있습니다. 모터의 방향·속도 바이트는 검증되지 않았으므로 시뮬레이션의 명령은 실제 장치로 보내지 않습니다.</p><a href="../connect.html">기존 CONNECT 하드웨어 제어 페이지 열기</a></section><footer><p><small>기존 스타게임과 카메라 페이지는 변경하지 않았습니다. 판매·결제 및 라이선스 기능은 아직 없습니다.</small></p></footer>
 </main><script>
 'use strict';
 const $=id=>document.getElementById(id);
@@ -32,5 +35,52 @@ $('execute').onclick=()=>execute($('cmd').value);
 $('stop').onclick=halt;
 $('voice').onclick=()=>{voice=!voice;$('voice').textContent=voice?'🔊 음성 켜짐':'🔈 음성 켜기';if(voice)speak('음성 안내를 시작합니다.');};
 document.querySelectorAll('[data-cmd]').forEach(b=>b.onclick=()=>{$('cmd').value=b.dataset.cmd;execute(b.dataset.cmd);});
-window.addEventListener('pagehide',()=>{clearTimeout(timer);try{speechSynthesis.cancel();}catch(_){}});
+// Web Serial permissions are origin-specific. COM22 names are not exposed to pages.
+let serialPort=null,serialBusy=false;
+const serialState=message=>$('serialState').textContent=message;
+function serialControls(connected){$('serialGrant').disabled=connected;$('serialClose').disabled=!connected;}
+function savedIdentity(){try{return JSON.parse(localStorage.getItem('connect-usb-info')||'null');}catch(_){return null;}}
+function rememberPort(p){try{localStorage.setItem('connect-usb-info',JSON.stringify(p.getInfo()));}catch(_){}}
+async function openSerial(p){
+ if(serialBusy||serialPort)return;
+ serialBusy=true;serialState('USB 포트 여는 중…');
+ try{
+   await p.open({baudRate:115200,dataBits:8,stopBits:1,parity:'none',flowControl:'none'});
+   serialPort=p;rememberPort(p);serialControls(true);
+   const info=p.getInfo();
+   serialState('USB 연결 성공 · 115200bps · '+(info.usbVendorId!==undefined?'USB ID '+info.usbVendorId.toString(16):'시리얼 장치')+' · 명령 전송 대기');
+   log('USB 포트 연결됨 (모터 명령 미전송)');
+ }catch(e){serialState('연결 실패: '+e.message+' · 기존 CONNECT 페이지나 다른 프로그램에서 사용 중인지 확인하세요.');}
+ finally{serialBusy=false;}
+}
+async function autoConnect(){
+ if(!('serial' in navigator)){serialState('Web Serial 미지원 · Windows PC Chrome 또는 Edge에서 HTTPS로 열어주세요.');return;}
+ try{
+   const ports=await navigator.serial.getPorts();
+   if(!ports.length){serialState('최초 1회 USB 연결 허용 버튼을 눌러 COM22(CP210x)를 선택하세요.');return;}
+   const saved=savedIdentity();
+   const matches=saved?ports.filter(p=>{const i=p.getInfo();return i.usbVendorId===saved.usbVendorId&&i.usbProductId===saved.usbProductId;}):ports;
+   if(matches.length===1)await openSerial(matches[0]);
+   else serialState('허용된 USB 장치가 여러 개입니다. USB 연결 허용 버튼으로 장치를 직접 선택하세요.');
+ }catch(e){serialState('자동 연결 확인 실패: '+e.message);}
+}
+$('serialGrant').onclick=async()=>{
+ if(!('serial' in navigator)){serialState('Web Serial 미지원 브라우저입니다.');return;}
+ try{const selected=await navigator.serial.requestPort();await openSerial(selected);}
+ catch(e){serialState(e.name==='NotFoundError'?'USB 포트를 선택하지 않았습니다.':'USB 선택 오류: '+e.message);}
+};
+$('serialClose').onclick=async()=>{
+ if(!serialPort)return;
+ const p=serialPort;serialPort=null;serialControls(false);
+ try{await p.close();serialState('USB 연결 해제');log('USB 연결 해제');}
+ catch(e){serialState('해제 오류: '+e.message);}
+};
+if('serial' in navigator){
+ navigator.serial.addEventListener('disconnect',event=>{
+   if(serialPort&&event.target===serialPort){serialPort=null;serialControls(false);serialState('USB 연결 끊김');}
+ });
+ navigator.serial.addEventListener('connect',()=>{if(!serialPort&&!serialBusy)autoConnect();});
+}
+autoConnect();
+window.addEventListener('pagehide',()=>{clearTimeout(timer);try{speechSynthesis.cancel();}catch(_){}if(serialPort)serialPort.close().catch(()=>{});});
 </script></body></html>
