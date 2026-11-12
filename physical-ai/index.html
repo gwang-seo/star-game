@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Physical AI CONNECT | 스타게임</title>
+<style>
+*{box-sizing:border-box}body{margin:0;min-height:100vh;background:linear-gradient(160deg,#80c8f7,#e3f4ff);color:#163350;font-family:Arial,'Malgun Gothic',sans-serif;padding:18px}main{max-width:680px;margin:auto;background:#fff;border-radius:22px;padding:24px;box-shadow:0 12px 35px #1f52752b}h1{font-size:27px}a{color:#1462a6}button{border:0;border-radius:12px;background:#1765aa;color:#fff;padding:13px 16px;font-size:16px;font-weight:700;cursor:pointer}button:disabled{opacity:.4;cursor:not-allowed}.danger{background:#ad3341}.sub{background:#e7eff8;color:#163350}textarea{display:block;width:100%;border:1px solid #bacbe0;border-radius:12px;padding:12px;font-size:17px;line-height:1.5}section{border-top:1px solid #dce5f0;padding-top:15px;margin-top:19px}.row{display:flex;flex-wrap:wrap;gap:9px;margin-top:12px}.notice{background:#eaf3fa;padding:12px;border-radius:12px;line-height:1.6}.status{font-weight:bold;white-space:pre-wrap}small{color:#536c82}#log{font:13px/1.6 monospace;white-space:pre-wrap;max-height:230px;overflow:auto;background:#101e30;color:#def2ff;padding:12px;border-radius:12px}
+</style></head><body><main>
+<a href="../index.html">← 스타게임 돌아가기</a>
+<h1>🤖 Physical AI CONNECT v1</h1>
+<p>AI 명령 해석 연습 · 중복 실행 방지 · 음성 안내</p>
+<div class="notice"><b>현재 기본 모드는 시뮬레이션입니다.</b> 실제 모터로 자동 명령을 보내지 않습니다. CONNECT 하드웨어는 검증된 기존 제어 페이지에서 별도로 시험하세요.</div>
+<section><label for="cmd"><b>로봇 명령 입력</b></label>
+<textarea id="cmd" rows="3" placeholder="예: 오른쪽으로 3초 움직여"></textarea>
+<div class="row"><button id="execute">▶ 명령 실행</button><button id="stop" class="danger">■ 정지</button><button id="voice" class="sub">🔈 음성 켜기</button></div>
+<p id="status" class="status" role="status">대기 중</p>
+</section>
+<section><h2>🧪 테스트</h2><div class="row"><button class="sub" data-cmd="네">네 → 오른쪽</button><button class="sub" data-cmd="아니오">아니오 → 왼쪽</button><button class="sub" data-cmd="오른쪽으로 3초 움직여">오른쪽 3초</button><button class="sub" data-cmd="정지해">정지</button></div>
+<p><small>한 번 실행한 같은 명령은 동작 중 재실행되지 않습니다. 실제 안전장치와는 별개의 웹 시뮬레이션입니다.</small></p></section>
+<section><h2>📋 실행 기록</h2><div id="log" aria-live="polite">시뮬레이션 준비 완료</div></section>
+<section><h2>🔌 실물 CONNECT 연결</h2><p>기존 Web Serial CONNECT 페이지에서 포트 선택, A1 버튼, 부저 및 제한된 DC 모터 시험을 할 수 있습니다. 모터의 방향·속도 바이트는 검증되지 않았으므로 이 시뮬레이터와 연결하지 않았습니다.</p><a href="../connect.html">기존 CONNECT 하드웨어 제어 페이지 열기</a></section>
+<footer><p><small>기존 스타게임과 카메라 페이지는 변경하지 않았습니다. 판매·결제 및 라이선스 기능은 아직 없습니다.</small></p></footer>
+</main><script>
+'use strict';
+const $=id=>document.getElementById(id);
+let active=false,token=0,timer=null,voice=false,lastCommand='';
+function log(message){const stamp=new Date().toLocaleTimeString('ko-KR');$('log').textContent='['+stamp+'] '+message+'\n'+$('log').textContent;}
+function speak(s){if(!voice||!('speechSynthesis' in window))return;try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(s);u.lang='ko-KR';speechSynthesis.speak(u);}catch(_){}}
+function setState(message){$('status').textContent=message;log(message);speak(message);}
+function halt(){token++;clearTimeout(timer);timer=null;active=false;lastCommand='';$('execute').disabled=false;setState('■ 정지');}
+function parse(input){const s=input.trim().toLowerCase();if(!s)return{error:'명령을 입력하세요.'};if(/정지|멈춰|스톱|stop/.test(s))return{action:'stop'};const yes=/^(네|예|yes|응)([.!?\s]|$)/.test(s),no=/^(아니오|아니|no)([.!?\s]|$)/.test(s);const right=yes||/오른쪽|우회전|시계방향/.test(s),left=no||/왼쪽|좌회전|반시계/.test(s);if(right===left)return{error:'오른쪽 또는 왼쪽 명령을 한 가지로 입력하세요.'};const m=s.match(/(\d+(?:\.\d+)?)\s*초/);const seconds=m?Number(m[1]):3;if(seconds<.2||seconds>5)return{error:'동작 시간은 0.2~5초로 제한됩니다.'};return{action:right?'right':'left',seconds};}
+function execute(input){const result=parse(input);if(result.error){setState(result.error);return;}if(result.action==='stop'){halt();return;}if(active){log('동작 중 중복 명령 무시');return;}const signature=result.action+':'+result.seconds;if(signature===lastCommand&&active)return;lastCommand=signature;active=true;const mine=++token;$('execute').disabled=true;const side=result.action==='right'?'오른쪽':'왼쪽';setState('시뮬레이션: '+side+' '+result.seconds+'초 동작');timer=setTimeout(()=>{if(mine!==token)return;timer=null;active=false;lastCommand='';$('execute').disabled=false;setState('시뮬레이션 종료 · 모터 정지');},result.seconds*1000);}
+$('execute').onclick=()=>execute($('cmd').value);
+$('stop').onclick=halt;
+$('voice').onclick=()=>{voice=!voice;$('voice').textContent=voice?'🔊 음성 켜짐':'🔈 음성 켜기';if(voice)speak('음성 안내를 시작합니다.');};
+document.querySelectorAll('[data-cmd]').forEach(b=>b.onclick=()=>{$('cmd').value=b.dataset.cmd;execute(b.dataset.cmd);});
+window.addEventListener('pagehide',()=>{clearTimeout(timer);try{speechSynthesis.cancel();}catch(_){}});
+</script></body></html>
