@@ -6,7 +6,7 @@
 <div id="status">카메라를 켜세요. 모델 로드에는 인터넷 연결이 필요합니다.</div><div id="serialStatus">CONNECT 미연결 · COM22 장치를 선택하세요. 다른 CONNECT 프로그램은 종료하세요.</div>
 <div class="screen"><video id="video" autoplay muted playsinline></video><canvas id="overlay"></canvas></div>
 <div id="gesture">손동작 대기</div>
-<p><small>V가 연속 3프레임 검출되면 0.35초 동안 부저를 울립니다. V를 내렸다가 다시 들어야 재작동합니다. 오인식 방지를 위해 손가락 두 개를 벌려 주세요. USB 포트 선택은 브라우저 보안상 사용자가 처음에 직접 해야 합니다. 기본 부저 설정은 기존 CONNECT 페이지에서 시험했던 MEL2=60입니다.</small></p>
+<p><small>큰 V를 포함해 V가 연속 3프레임 검출되면 0.35초 동안 부저를 울립니다. V를 내렸다가 다시 들어야 재작동합니다. 오인식 방지를 위해 손가락 두 개를 벌려 주세요. USB 포트 선택은 브라우저 보안상 사용자가 처음에 직접 해야 합니다. 기본 부저 설정은 기존 CONNECT 페이지에서 시험했던 MEL2=60입니다.</small></p>
 </main><script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script><script>
 'use strict';const $=id=>document.getElementById(id);
 let stream=null,hands=null,working=false,looping=false,port=null,writer=null,queue=Promise.resolve(),poll=null,lastFrame=null,soundTimer=null,positive=0,negative=0,armed=true,lastHit=0;
@@ -15,14 +15,22 @@ function packet(m1,m2){const b=new Uint8Array(22);b[0]=0xAD;b[1]=0xDA;b[2]=19;b[
 function send(data){lastFrame=data.slice();queue=queue.catch(()=>{}).then(async()=>{if(!writer)return;await writer.write(data)});return queue}
 async function silence(){clearTimeout(soundTimer);if(writer)await send(packet(0,0))}
 async function beep(){if(!writer)return;clearTimeout(soundTimer);await send(packet(0,60));soundTimer=setTimeout(()=>{silence().catch(e=>serial('정지 실패: '+e.message))},350)}
-function isV(l){const d=(a,b)=>Math.hypot(l[a].x-l[b].x,l[a].y-l[b].y);
-const extend=(tip,pip,mcp)=>d(tip,mcp)>d(pip,mcp)*1.28 && d(tip,0)>d(pip,0)*1.08;
-const folded=(tip,pip,mcp)=>d(tip,mcp)<d(pip,mcp)*1.2;
-const spread=d(8,12)>d(5,9)*0.57;
-return extend(8,6,5)&&extend(12,10,9)&&folded(16,14,13)&&folded(20,18,17)&&spread}
-function onResults(results){const canvas=$('overlay'),v=$('video');if(!v.videoWidth)return;canvas.width=v.videoWidth;canvas.height=v.videoHeight;const ctx=canvas.getContext('2d');ctx.clearRect(0,0,canvas.width,canvas.height);let found=false;
+function isV(l){
+ // 관절 각도로 판단: 카메라 거리와 손가락을 크게 벌린 정도에 덜 민감합니다.
+ const d=(a,b)=>Math.hypot(l[a].x-l[b].x,l[a].y-l[b].y);
+ const angle=(a,b,c)=>{const ux=l[a].x-l[b].x,uy=l[a].y-l[b].y,vx=l[c].x-l[b].x,vy=l[c].y-l[b].y;return Math.acos(Math.max(-1,Math.min(1,(ux*vx+uy*vy)/(Math.hypot(ux,uy)*Math.hypot(vx,vy)+1e-8))))*180/Math.PI};
+ const index=angle(5,6,8),middle=angle(9,10,12);
+ const ring=angle(13,14,16),pinky=angle(17,18,20);
+ // 손가락을 크게 벌려도 각 손가락의 펴짐 상태만 확인합니다.
+ const twoUp=index>145&&middle>145;
+ const othersDown=ring<155&&pinky<155;
+ // 검지와 중지가 서로 붙어 있는 상태는 V가 아닙니다.
+ const separated=d(8,12)>d(5,9)*0.40;
+ return twoUp&&othersDown&&separated;
+}
+function onResults(results){const canvas=$('overlay'),v=$('video');if(!v.videoWidth)return;canvas.width=v.videoWidth;canvas.height=v.videoHeight;const ctx=canvas.getContext('2d');ctx.clearRect(0,0,canvas.width,canvas.height);let found=false;const count=(results.multiHandLandmarks||[]).length;
 for(const l of results.multiHandLandmarks||[]){if(isV(l))found=true;for(const p of l){ctx.beginPath();ctx.arc(p.x*canvas.width,p.y*canvas.height,4,0,Math.PI*2);ctx.fillStyle=found?'#22dc78':'#ffdb63';ctx.fill()}}
-if(found){positive++;negative=0;if(positive>=3){$('gesture').textContent='✌️ V 인식!'+(writer?' 부저 제어 준비':' (USB 연결 전)');if(armed&&Date.now()-lastHit>1500){armed=false;lastHit=Date.now();beep().catch(e=>serial('부저 오류: '+e.message))}}}else{positive=0;negative++;if(negative>=5){armed=true;$('gesture').textContent='손동작 대기'}}}
+if(found){positive++;negative=0;if(positive>=3){$('gesture').textContent='✌️ V 인식!'+(writer?' 부저 제어 준비':' (USB 연결 전)');if(armed&&Date.now()-lastHit>1500){armed=false;lastHit=Date.now();beep().catch(e=>serial('부저 오류: '+e.message))}}}else{positive=0;negative++;if(negative>=5){armed=true;$('gesture').textContent=count?'손 '+count+'개 감지 · V 판단 대기':'손 감지 안 됨 · 손 전체를 화면에 보여주세요'}}}
 async function cameraLoop(){if(!looping)return;if(!working&&hands&&$('video').readyState>=2){working=true;try{await hands.send({image:$('video')})}catch(e){stat('손 인식 오류: '+e.message);looping=false}finally{working=false}}if(looping)setTimeout(cameraLoop,90)}
 $('camera').onclick=async()=>{try{if(typeof Hands==='undefined')throw Error('MediaPipe 라이브러리를 불러오지 못했습니다. 인터넷 연결을 확인하세요.');stat('손 인식 모델 준비 중...');stream=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:640},height:{ideal:480}},audio:false});$('video').srcObject=stream;await $('video').play();hands=new Hands({locateFile:file=>'https://cdn.jsdelivr.net/npm/@mediapipe/hands/'+file});hands.setOptions({maxNumHands:2,modelComplexity:0,minDetectionConfidence:0.65,minTrackingConfidence:0.55});hands.onResults(onResults);looping=true;cameraLoop();$('camera').disabled=true;$('connect').disabled=false;$('off').disabled=false;stat('✅ 카메라 작동 중 · 손가락 V를 보여 주세요.')}catch(e){stat('❌ 카메라 오류: '+e.message);stream?.getTracks().forEach(t=>t.stop());stream=null}};
 $('connect').onclick=async()=>{if(!navigator.serial){serial('❌ Chrome/Edge PC의 Web Serial이 필요합니다');return}try{port=await navigator.serial.requestPort();await port.open({baudRate:115200,dataBits:8,stopBits:1,parity:'none',flowControl:'none'});writer=port.writable.getWriter();await send(Uint8Array.of(0x63,0x36));await send(packet(0,0));poll=setInterval(()=>{if(writer&&lastFrame)queue=queue.catch(()=>{}).then(()=>writer.write(lastFrame.slice()))},120);$('connect').disabled=true;$('test').disabled=false;serial('✅ CONNECT USB 연결 완료. V를 보여주면 부저가 울립니다.')}catch(e){serial('❌ CONNECT 연결 실패: '+e.message);try{writer?.releaseLock();writer=null;await port?.close()}catch(_){}port=null}};
