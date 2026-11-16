@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Qwen 로컬 카메라 AI | 스타게임</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#eaf4fd;font-family:system-ui,"Malgun Gothic",sans-serif;color:#173252;padding:18px}main{max-width:890px;margin:auto;background:white;border-radius:20px;padding:22px;box-shadow:0 8px 28px #486e9825}h1{font-size:25px;margin:12px 0}h2{font-size:18px}p{line-height:1.65}.muted{color:#526b86}.note{padding:12px;background:#eef6fe;border-radius:10px}video{display:block;width:100%;background:#162131;border-radius:14px;aspect-ratio:4/3;object-fit:contain;max-height:470px}button{font-size:16px;border:0;border-radius:10px;padding:12px 16px;background:#1266b1;color:white;cursor:pointer}button:disabled{background:#9cabb8;cursor:not-allowed}button.secondary{background:#4a637c}button.stop{background:#a43b4b}.buttons{display:flex;flex-wrap:wrap;gap:9px;margin:13px 0}label{display:inline-flex;align-items:center;gap:9px;margin:8px 12px 8px 0}select,input{font-size:15px;padding:8px;border-radius:8px;border:1px solid #b2c4d6}#result{white-space:pre-wrap;min-height:100px;border:1px solid #bcd1e6;padding:15px;border-radius:12px;line-height:1.6;background:#f8fbff}#status{font-weight:600;margin:12px 0}a{color:#155bac}code{overflow-wrap:anywhere}.tiny{font-size:13px;color:#65758a}details{margin-top:18px}summary{cursor:pointer;font-weight:600}
+</style></head><body><main>
+<a href="./index.html">← 스타게임 홈</a>
+<h1>📷 Qwen3-VL 8B · 로컬 카메라 AI</h1>
+<p class="muted">웹캠 → 내 PC의 Ollama → 화면 설명. 무료 API 없이 실행되며, 이 페이지는 촬영 사진을 외부 서버에 업로드하지 않습니다.</p>
+<div class="note">이 페이지는 <b>Qwen 모델을 실행하는 PC의 Chrome</b>에서 사용하세요. AI는 사이트 서버가 아닌 <b>내 PC</b>에서 실행됩니다. 웹캠은 사용자가 허용한 경우에만 켜집니다.</div>
+<div class="buttons"><button id="check">① Ollama 연결 확인</button><button id="start">② 카메라 켜기</button><button id="once" disabled>③ 지금 분석</button><button id="auto" disabled>자동 분석 시작</button><button id="stop" class="stop" disabled>카메라 끄기</button></div>
+<video id="video" autoplay muted playsinline></video>
+<div><label>자동 분석 간격 <select id="gap"><option value="2000">2초</option><option value="5000" selected>5초</option><option value="10000">10초</option></select></label><label>질문 <select id="question"><option value="이 사진의 주요 물체와 사람이 하는 행동을 한국어로 두 문장 이내로 설명해.">장면 설명</option><option value="사람이 손가락으로 V 표시를 하고 있는지 판단해. 첫 단어는 반드시 네 또는 아니오로 답하고, 한 문장으로 이유를 말해.">손가락 V 확인</option><option value="이 사진에서 달라진 것으로 보이는 활동을 간단히 설명해. 추측은 사실처럼 말하지 마.">행동 관찰</option></select></label></div>
+<div id="status" role="status">연결 확인 버튼을 먼저 누르세요.</div>
+<h2>인식 결과</h2><div id="result" aria-live="polite">아직 분석하지 않았습니다.</div>
+<p class="tiny">분석 시간은 촬영 이미지 전송·모델 처리·답변 생성을 포함합니다. 너무 오래 걸리면 자동 인식 간격을 길게 설정하세요. 모델: qwen3-vl:8b-instruct · 컨텍스트: 8192 · 출력 제한: 120토큰.</p>
+<details id="help"><summary>연결에 실패하면 여기를 여세요</summary>
+<p>Ollama 앱이 실행 중인지 확인하세요. 웹사이트에서 내 PC의 Ollama에 접속하도록 허용하려면 Windows PowerShell에서 아래 명령을 <b>한 번만</b> 실행한 뒤 Ollama를 완전히 종료하고 다시 실행합니다.</p>
+<pre style="white-space:pre-wrap;background:#edf2f8;padding:12px;border-radius:10px"><code>setx OLLAMA_ORIGINS "https://gwang-seo.github.io,https://star-game1234.netlify.app"</code></pre>
+<button class="secondary" id="copy">명령 복사</button>
+<p class="tiny">중요: 이 명령은 해당 웹사이트의 로컬 Ollama 접근을 허용하는 설정입니다. 공유 PC에서는 허용 출처를 최소화하세요. 환경 변수를 바꾼 후 Ollama 트레이 아이콘에서 종료 후 다시 실행하거나 Windows에 다시 로그인해야 반영됩니다. 브라우저가 로컬 네트워크 접근 권한을 물으면 허용하세요.</p></details>
+</main><script>
+'use strict';
+const $=id=>document.getElementById(id),api='http://127.0.0.1:11434';
+let stream=null, running=false,busy=false,alive=false,timeout=null,controller=null;
+const status=s=>{$('status').textContent=s};
+function setButtons(){ $('once').disabled=!stream||busy; $('auto').disabled=!stream; $('auto').textContent=running?'자동 분석 중지':'자동 분석 시작'; $('stop').disabled=!stream; }
+async function callAPI(path,options={}){let c=new AbortController(),tm=setTimeout(()=>c.abort(),12000);try{return await fetch(api+path,{...options,signal:options.signal||c.signal})}finally{clearTimeout(tm)}}
+$('check').onclick=async()=>{status('Ollama 연결 확인 중...');try{const r=await callAPI('/api/tags');if(!r.ok)throw Error('HTTP '+r.status);const j=await r.json();const ok=(j.models||[]).some(m=>m.name.startsWith('qwen3-vl:8b-instruct'));status(ok?'✅ Ollama 및 Qwen3-VL 8B 연결 OK':'⚠ Ollama 연결 OK, qwen3-vl:8b-instruct 모델을 찾지 못했습니다.');}catch(e){status('❌ 로컬 Ollama 연결 실패. 아래 연결 도움말을 확인하세요. ('+e.message+')');$('help').open=true;}};
+$('start').onclick=async()=>{try{stream=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:1280},height:{ideal:720}},audio:false});$('video').srcObject=stream;await $('video').play();status('✅ 카메라 연결 OK. 지금 분석 또는 자동 분석을 누르세요.');$('start').disabled=true;setButtons()}catch(e){status('❌ 카메라 연결 실패: '+e.message)}};
+const sleep=ms=>new Promise(resolve=>{timeout=setTimeout(resolve,ms)});
+async function analyze(){if(!stream||busy)return;busy=true;setButtons();const begin=performance.now();controller=new AbortController();try{const v=$('video');if(!v.videoWidth)throw Error('카메라 영상이 준비되지 않았습니다');const canvas=document.createElement('canvas');const scale=Math.min(1,640/v.videoWidth,480/v.videoHeight);canvas.width=Math.max(1,Math.round(v.videoWidth*scale));canvas.height=Math.max(1,Math.round(v.videoHeight*scale));canvas.getContext('2d').drawImage(v,0,0,canvas.width,canvas.height);const img=canvas.toDataURL('image/jpeg',0.65).split(',')[1];
+status('🔎 Qwen이 사진을 분석하고 있습니다...');const r=await fetch(api+'/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'qwen3-vl:8b-instruct',stream:false,messages:[{role:'user',content:$('question').value,images:[img]}],options:{num_ctx:8192,num_predict:120,temperature:0}}),signal:controller.signal});if(!r.ok)throw Error('HTTP '+r.status+' '+(await r.text()).slice(0,220));const j=await r.json();const sec=((performance.now()-begin)/1000).toFixed(1);$('result').textContent=(j.message?.content||'(내용 없음)')+'\n\n⏱ '+sec+'초';status('✅ 사진 분석 완료 · '+sec+'초');}catch(e){if(e.name==='AbortError')status('분석 중단');else{status('❌ 분석 오류: '+e.message+' · 아래 연결 도움말을 확인하세요.');$('help').open=true;}}finally{busy=false;controller=null;setButtons()}}
+$('once').onclick=()=>analyze();
+async function loop(){if(!running||!stream)return;await analyze();if(!running)return;const d=Number($('gap').value);timeout=setTimeout(loop,d)}
+$('auto').onclick=()=>{running=!running;if(running){status('자동 분석 시작');loop()}else{clearTimeout(timeout);status('자동 분석 중지')}setButtons()};
+$('stop').onclick=()=>{running=false;clearTimeout(timeout);controller?.abort();stream?.getTracks().forEach(t=>t.stop());stream=null;$('video').srcObject=null;$('start').disabled=false;setButtons();status('카메라 꺼짐')};
+$('copy').onclick=async()=>{try{await navigator.clipboard.writeText('setx OLLAMA_ORIGINS "https://gwang-seo.github.io,https://star-game1234.netlify.app"');status('설정 명령이 복사되었습니다.')}catch(e){status('복사 실패. 위 명령을 직접 복사하세요.')}};
+window.addEventListener('pagehide',()=>{running=false;clearTimeout(timeout);controller?.abort();stream?.getTracks().forEach(t=>t.stop())});
+</script></body></html>
