@@ -1,15 +1,15 @@
 <!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>손가락 1~5 연주 | 스타게임</title>
+<title>두 손 손가락 1~10 연주 | 스타게임</title>
 <style>*{box-sizing:border-box}body{margin:0;background:#e8f4ff;color:#183652;font-family:system-ui,"Malgun Gothic",sans-serif;padding:18px}main{max-width:820px;margin:auto;background:#fff;padding:22px;border-radius:20px;box-shadow:0 8px 30px #476e9629}h1{font-size:26px}p{line-height:1.55}a{color:#1262a8}.buttons{display:flex;flex-wrap:wrap;gap:8px;margin:15px 0}button{border:0;border-radius:10px;background:#1267b2;color:white;padding:12px 14px;font-size:16px;cursor:pointer}button:disabled{background:#a4b2bd;cursor:not-allowed}#stop{background:#a8434d}.screen{position:relative;background:#172536;border-radius:14px;overflow:hidden}video{display:block;width:100%;aspect-ratio:4/3;object-fit:contain;max-height:460px;transform:scaleX(-1)}canvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;transform:scaleX(-1)}#status,#usb{background:#eef5fc;padding:11px;margin:9px 0;border-radius:9px}#number{font-size:40px;text-align:center;font-weight:bold;padding:12px}#notes{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:7px}#notes>div{border:2px solid #c5d9ec;border-radius:12px;padding:15px 4px;text-align:center;font-size:21px;font-weight:bold}#notes .active{background:#d9fbe8;border-color:#10a765}.minor{font-size:13px;color:#556b80}code{background:#eaf1f8;padding:1px 5px}</style>
-</head><body><main><a href="./index.html">← 스타게임</a><h1>🎹 손가락 1·2·3·4·5 연주</h1>
-<p>카메라에 <strong>손가락 1~5개</strong>를 펴면 프로보 CONNECT 부저에서 각각 다른 높이의 소리가 납니다. 같은 숫자를 유지하면 다시 울리지 않고, 숫자를 바꾸면 다음 소리가 납니다.</p>
+</head><body><main><a href="./index.html">← 스타게임</a><h1>🎹 두 손 손가락 1~10 연주</h1>
+<p>카메라에 <strong>두 손을 보여주고 손가락 합계 1~10개</strong>를 펴면 프로보 CONNECT 부저에서 각각 다른 높이의 소리가 납니다. 같은 숫자를 유지하면 다시 울리지 않고, 숫자를 바꾸면 다음 소리가 납니다.</p>
 <div class="buttons"><button id="camera">① 카메라 켜기</button><button id="connect" disabled>② CONNECT 연결</button><button id="test" disabled>♪ 부저 시험</button><button id="stop" disabled>■ 종료</button></div>
 <div id="status">카메라를 켜세요.</div><div id="usb">CONNECT 연결 전 · PC Chrome에서 COM22 포트를 선택하세요.</div>
 <div class="screen"><video id="video" autoplay muted playsinline></video><canvas id="overlay"></canvas></div>
 <div id="number">손가락 대기</div>
-<div id="notes"><div data-n="1">1<small>낮은음</small></div><div data-n="2">2</div><div data-n="3">3</div><div data-n="4">4</div><div data-n="5">5<small>높은음</small></div></div>
-<p class="minor">음높이 값은 이전 CONNECT 부저 실험값을 기준으로 한 5단계입니다. 도레미파솔의 정확한 음정은 아직 보정되지 않았습니다. 손을 너무 가까이 대지 말고 손 전체가 카메라에 나오게 하세요. 영상은 이 브라우저에서만 처리됩니다.</p>
+<div id="notes"><div data-n="1">1<small>낮은음</small></div><div data-n="2">2</div><div data-n="3">3</div><div data-n="4">4</div><div data-n="5">5</div><div data-n="6">6</div><div data-n="7">7</div><div data-n="8">8</div><div data-n="9">9</div><div data-n="10">10<small>높은음</small></div></div>
+<p class="minor">음높이 값은 이전 CONNECT 부저 실험값을 바탕으로 확장한 10단계입니다. 6~10단계 소리는 기기에서 확인이 필요합니다. 도레미파솔의 정확한 음정은 아직 보정되지 않았습니다. 손을 너무 가까이 대지 말고 손 전체가 카메라에 나오게 하세요. 영상은 이 브라우저에서만 처리됩니다.</p>
 </main><script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script><script>
 'use strict';
 const $=id=>document.getElementById(id);
@@ -18,7 +18,7 @@ const status=s=>$('status').textContent=s,usb=s=>$('usb').textContent=s;
 function packet(mel2){const b=new Uint8Array(22);b[0]=0xAD;b[1]=0xDA;b[2]=19;b[3]=0xF0;b[12]=mel2;b[13]=0;b[14]=100;let sum=0;for(let i=3;i<21;i++)sum=(sum+b[i])&255;b[21]=sum;return b}
 function enqueue(bytes){lastFrame=bytes.slice();sendQueue=sendQueue.catch(()=>{}).then(async()=>{if(writer)await writer.write(bytes)});return sendQueue}
 async function silence(){clearTimeout(stopSoundTimer);if(writer)await enqueue(packet(0))}
-const sounds={1:80,2:70,3:60,4:50,5:40};
+const sounds={1:80,2:70,3:60,4:50,5:40,6:38,7:36,8:34,9:32,10:30};
 async function play(n){if(!writer||!sounds[n])return;clearTimeout(stopSoundTimer);await enqueue(packet(sounds[n]));stopSoundTimer=setTimeout(()=>silence().catch(e=>usb('정지 실패: '+e.message)),340)}
 function countFingers(l){
  const dist=(a,b)=>Math.hypot(l[a].x-l[b].x,l[a].y-l[b].y);
@@ -38,14 +38,14 @@ function countFingers(l){
  return count;
 }
 function draw(result){const v=$('video'),canvas=$('overlay');if(!v.videoWidth)return;canvas.width=v.videoWidth;canvas.height=v.videoHeight;const ctx=canvas.getContext('2d');ctx.clearRect(0,0,canvas.width,canvas.height);
- const detected=result.multiHandLandmarks||[];let n=detected.length?countFingers(detected[0]):-1;
+ const detected=result.multiHandLandmarks||[];const perHand=detected.map(countFingers);let n=detected.length?perHand.reduce((a,b)=>a+b,0):-1;
  for(const lm of detected){for(const p of lm){ctx.beginPath();ctx.arc(p.x*canvas.width,p.y*canvas.height,3.5,0,Math.PI*2);ctx.fillStyle='#ffcc36';ctx.fill()}}
  if(n!==pendingCount){pendingCount=n;stable=1}else stable++;
- if(stable>=3&&n!==currentCount){currentCount=n;$('number').textContent=n<0?'손 감지 안 됨':n===0?'주먹 (0)':n+'개 인식'+(window.lastFingerCheck?' · 엄지 '+(window.lastFingerCheck.thumb?'O':'X'):'');document.querySelectorAll('[data-n]').forEach(el=>el.classList.toggle('active',Number(el.dataset.n)===n));
- if(n>=1&&n<=5&&Date.now()-lastPlay>350){lastPlay=Date.now();play(n).catch(e=>usb('부저 오류: '+e.message))}else if(n===0||n<0){silence().catch(()=>{})}}
+ if(stable>=3&&n!==currentCount){currentCount=n;$('number').textContent=n<0?'손 감지 안 됨':n===0?'주먹 (0)':n+'개 인식 · '+perHand.map((x,i)=>(i+1)+'번째 손 '+x+'개').join(' + ');document.querySelectorAll('[data-n]').forEach(el=>el.classList.toggle('active',Number(el.dataset.n)===n));
+ if(n>=1&&n<=10&&Date.now()-lastPlay>350){lastPlay=Date.now();play(n).catch(e=>usb('부저 오류: '+e.message))}else if(n===0||n<0){silence().catch(()=>{})}}
 }
 async function process(){if(!looping)return;if(!busy&&hands&&$('video').readyState>=2){busy=true;try{await hands.send({image:$('video')})}catch(e){status('인식 오류: '+e.message);looping=false}finally{busy=false}}if(looping)setTimeout(process,65)}
-$('camera').onclick=async()=>{try{if(typeof Hands==='undefined')throw Error('MediaPipe 불러오기 실패. 인터넷을 확인하세요.');stream=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:640},height:{ideal:480}},audio:false});$('video').srcObject=stream;await $('video').play();hands=new Hands({locateFile:f=>'https://cdn.jsdelivr.net/npm/@mediapipe/hands/'+f});hands.setOptions({maxNumHands:1,modelComplexity:0,minDetectionConfidence:0.6,minTrackingConfidence:0.55});hands.onResults(draw);looping=true;process();$('camera').disabled=true;$('connect').disabled=false;$('stop').disabled=false;status('✅ 손 인식 시작. 손가락 1~5개를 보여 주세요.')}catch(e){status('카메라 오류: '+e.message);stream?.getTracks().forEach(t=>t.stop());stream=null}};
+$('camera').onclick=async()=>{try{if(typeof Hands==='undefined')throw Error('MediaPipe 불러오기 실패. 인터넷을 확인하세요.');stream=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:640},height:{ideal:480}},audio:false});$('video').srcObject=stream;await $('video').play();hands=new Hands({locateFile:f=>'https://cdn.jsdelivr.net/npm/@mediapipe/hands/'+f});hands.setOptions({maxNumHands:2,modelComplexity:0,minDetectionConfidence:0.6,minTrackingConfidence:0.55});hands.onResults(draw);looping=true;process();$('camera').disabled=true;$('connect').disabled=false;$('stop').disabled=false;status('✅ 손 인식 시작. 두 손으로 손가락 합계 1~10개를 보여 주세요.')}catch(e){status('카메라 오류: '+e.message);stream?.getTracks().forEach(t=>t.stop());stream=null}};
 $('connect').onclick=async()=>{try{if(!navigator.serial)throw Error('PC Chrome 또는 Edge가 필요합니다');port=await navigator.serial.requestPort();await port.open({baudRate:115200,dataBits:8,stopBits:1,parity:'none',flowControl:'none'});writer=port.writable.getWriter();await enqueue(Uint8Array.of(0x63,0x36));await enqueue(packet(0));poll=setInterval(()=>{if(writer&&lastFrame){const copy=lastFrame.slice();sendQueue=sendQueue.catch(()=>{}).then(()=>writer.write(copy)).catch(e=>usb('통신 오류: '+e.message))}},120);$('connect').disabled=true;$('test').disabled=false;usb('✅ CONNECT 연결 OK · 손가락으로 연주하세요.')}catch(e){usb('❌ 연결 실패: '+e.message);try{writer?.releaseLock();writer=null;await port?.close()}catch(_){}port=null}};
 $('test').onclick=()=>play(3).then(()=>usb('♪ 부저 시험 완료')).catch(e=>usb('오류: '+e.message));
 $('stop').onclick=async()=>{looping=false;stream?.getTracks().forEach(t=>t.stop());stream=null;clearInterval(poll);poll=null;clearTimeout(stopSoundTimer);try{await silence();await sendQueue.catch(()=>{});writer?.releaseLock();writer=null;await port?.close()}catch(e){usb('종료 오류: '+e.message)}port=null;hands?.close();hands=null;$('video').srcObject=null;const c=$('overlay');c.getContext('2d').clearRect(0,0,c.width,c.height);$('camera').disabled=false;$('connect').disabled=true;$('test').disabled=true;$('stop').disabled=true;currentCount=pendingCount=-1;stable=0;$('number').textContent='손가락 대기';document.querySelectorAll('[data-n]').forEach(el=>el.classList.remove('active'));status('종료됨')};
