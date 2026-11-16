@@ -27,15 +27,21 @@ function countFingers(l){
  for(const [m,p,t] of [[5,6,8],[9,10,12],[13,14,16],[17,18,20]]){
   if(angle(m,p,t)>150 && dist(t,0)>dist(p,0)*1.07)count++;
  }
- // 엄지는 접힌 손가락과 떨어진 정도와 첫째 관절 각도로 판단
- if(angle(2,3,4)>148 && dist(4,5)>dist(3,5)*1.30 && dist(4,17)>dist(3,17)*1.05)count++;
+ // 엄지는 손을 펼쳤을 때 손바닥 바깥으로 뻗은 정도로 판단합니다.
+ // 예전의 엄지 관절 148도 / 거리 1.30배 조건은 펼친 엄지를 놓치기 쉬웠습니다.
+ const palm=dist(5,17);
+ const thumbAway=dist(4,17)>dist(2,17)+palm*0.12;
+ const thumbExtended=dist(4,2)>dist(3,2)*1.42;
+ const thumbOpen=thumbAway&&thumbExtended;
+ if(thumbOpen)count++;
+ window.lastFingerCheck={four:count-(thumbOpen?1:0),thumb:thumbOpen};
  return count;
 }
 function draw(result){const v=$('video'),canvas=$('overlay');if(!v.videoWidth)return;canvas.width=v.videoWidth;canvas.height=v.videoHeight;const ctx=canvas.getContext('2d');ctx.clearRect(0,0,canvas.width,canvas.height);
  const detected=result.multiHandLandmarks||[];let n=detected.length?countFingers(detected[0]):-1;
  for(const lm of detected){for(const p of lm){ctx.beginPath();ctx.arc(p.x*canvas.width,p.y*canvas.height,3.5,0,Math.PI*2);ctx.fillStyle='#ffcc36';ctx.fill()}}
  if(n!==pendingCount){pendingCount=n;stable=1}else stable++;
- if(stable>=3&&n!==currentCount){currentCount=n;$('number').textContent=n<0?'손 감지 안 됨':n===0?'주먹 (0)':n+'개 인식';document.querySelectorAll('[data-n]').forEach(el=>el.classList.toggle('active',Number(el.dataset.n)===n));
+ if(stable>=3&&n!==currentCount){currentCount=n;$('number').textContent=n<0?'손 감지 안 됨':n===0?'주먹 (0)':n+'개 인식'+(window.lastFingerCheck?' · 엄지 '+(window.lastFingerCheck.thumb?'O':'X'):'');document.querySelectorAll('[data-n]').forEach(el=>el.classList.toggle('active',Number(el.dataset.n)===n));
  if(n>=1&&n<=5&&Date.now()-lastPlay>350){lastPlay=Date.now();play(n).catch(e=>usb('부저 오류: '+e.message))}else if(n===0||n<0){silence().catch(()=>{})}}
 }
 async function process(){if(!looping)return;if(!busy&&hands&&$('video').readyState>=2){busy=true;try{await hands.send({image:$('video')})}catch(e){status('인식 오류: '+e.message);looping=false}finally{busy=false}}if(looping)setTimeout(process,65)}
