@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Qwen 대화 | 스타게임</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#edf5ff;color:#183452;font-family:system-ui,"Malgun Gothic",sans-serif;padding:16px}
+main{max-width:820px;margin:auto;background:#fff;border-radius:18px;padding:19px;box-shadow:0 8px 28px #18345220}
+header{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}a{color:#135bb0;text-decoration:none}
+h1{font-size:24px;margin:12px 0 6px}p{line-height:1.5}.sub{color:#62768a;font-size:14px}
+#status{font-size:14px;color:#526a80;margin:14px 0}
+#messages{height:min(56vh,540px);min-height:290px;overflow-y:auto;background:#f4f8fd;border:1px solid #d4e1f0;border-radius:15px;padding:15px;display:flex;flex-direction:column;gap:12px}
+.msg{max-width:88%;padding:12px 15px;border-radius:14px;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.55}
+.user{align-self:flex-end;background:#1861ad;color:white}.assistant{align-self:flex-start;background:white;border:1px solid #d0e0ef}
+form{display:flex;gap:8px;margin-top:14px;align-items:flex-end}textarea{flex:1;resize:vertical;min-height:48px;max-height:180px;border:1px solid #b9cce0;border-radius:12px;font:inherit;padding:12px}
+button{border:0;border-radius:11px;padding:12px 17px;background:#1764b7;color:white;cursor:pointer;font:inherit;font-weight:600}button:disabled{opacity:.55;cursor:wait}.secondary{background:#e3edf8;color:#174e87}code{overflow-wrap:anywhere}
+</style></head><body><main>
+<header><a href="./index.html">← 스타게임 홈</a><button id="reset" class="secondary" type="button">대화 초기화</button></header>
+<h1>🧠 Qwen과 대화하기</h1>
+<p class="sub">내 PC에서 실행 중인 Ollama의 Qwen3-VL 8B와 대화합니다. 외부 유료 API는 사용하지 않습니다.</p>
+<div id="status" role="status">로컬 Qwen 연결 확인 중…</div>
+<div id="messages" aria-live="polite"><div class="msg assistant">안녕하세요! 무엇을 도와드릴까요?</div></div>
+<form id="form"><textarea id="question" placeholder="Qwen에게 질문하세요. Enter 전송 / Shift+Enter 줄바꿈" aria-label="질문 입력"></textarea><button id="send" type="submit">전송</button></form>
+<details><summary>연결이 안 되나요?</summary>
+<p>같은 PC에서 Ollama를 실행해야 합니다. 웹사이트 주소를 Ollama 접근 허용 목록에 등록하고 Ollama를 재시작하세요.</p>
+<pre><code>setx OLLAMA_ORIGINS "https://gwang-seo.github.io,https://star-game1234.netlify.app"</code></pre>
+<p class="sub">이 명령은 Windows 환경 변수 설정입니다. 설정 후 Ollama를 완전히 종료하고 재시작해야 적용됩니다. 로컬 연결을 허용할 출처만 지정하세요.</p>
+</details>
+</main><script>
+'use strict';
+const API='http://127.0.0.1:11434',MODEL='qwen3-vl:8b-instruct';
+const $=id=>document.getElementById(id);
+const history=[];let busy=false;
+function status(s){$('status').textContent=s}
+function add(role,content){const el=document.createElement('div');el.className='msg '+role;el.textContent=content;$('messages').appendChild(el);$('messages').scrollTop=$('messages').scrollHeight;return el}
+async function check(){try{const r=await fetch(API+'/api/tags');if(!r.ok)throw Error('HTTP '+r.status);const data=await r.json();const models=(data.models||[]).map(x=>x.name);if(!models.some(x=>x===MODEL||x.startsWith('qwen3-vl:8b'))){status('⚠ Ollama 연결 OK · Qwen3-VL 8B 모델 확인 필요');return}status('✅ Qwen 연결 OK')}catch(e){status('⚠ Ollama 연결 실패 · Ollama 실행과 아래 연결 안내를 확인하세요 ('+e.message+')')}}
+$('form').addEventListener('submit',async e=>{e.preventDefault();const q=$('question').value.trim();if(!q||busy)return;busy=true;$('send').disabled=true;$('question').value='';add('user',q);const pending=add('assistant','생각 중…');status('Qwen 답변 생성 중…');try{const r=await fetch(API+'/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:MODEL,stream:false,messages:[...history,{role:'user',content:q}],options:{num_ctx:8192,num_predict:500}})});if(!r.ok)throw Error('HTTP '+r.status+' '+(await r.text()).slice(0,150));const data=await r.json();const a=(data.message?.content||'').trim()||'(응답 내용 없음)';pending.textContent=a;history.push({role:'user',content:q},{role:'assistant',content:a});status('✅ 답변 완료')}catch(err){pending.textContent='연결 오류: '+err.message;status('⚠ 연결 실패 · Ollama 실행 상태와 허용 출처를 확인하세요')}finally{busy=false;$('send').disabled=false;$('question').focus()}});
+$('question').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();$('form').requestSubmit()}});
+$('reset').addEventListener('click',()=>{if(busy)return;history.length=0;$('messages').innerHTML='';add('assistant','새 대화를 시작합니다.');status('대화 초기화 완료')});
+check();
+</script></body></html>
