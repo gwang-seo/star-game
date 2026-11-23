@@ -12,12 +12,9 @@
 #include <PubSubClient.h>
 #include <esp_sleep.h>
 
-// Priority order: 1) KT 2) doc2G 3) iPhone.
-// Set names/passwords ONLY in your local Arduino sketch.
-// This repository is public: do not commit real Wi-Fi passwords.
-const char* WIFI_SSIDS[] = {"WIFI1_NAME", "WIFI2_NAME", "WIFI3_NAME"};
-const char* WIFI_PASSWORDS[] = {"WIFI1_PASSWORD", "WIFI2_PASSWORD", "WIFI3_PASSWORD"};
-const size_t WIFI_COUNT = sizeof(WIFI_SSIDS) / sizeof(WIFI_SSIDS[0]);
+// Only the first Wi-Fi network. Fill password locally, not in public GitHub.
+const char* WIFI_SSID = "KT_GiGA_2G_Wave2_9858";
+const char* WIFI_PASS = "WIFI_PASSWORD";
 const char* MQTT_HOST = "broker.emqx.io";
 const uint16_t MQTT_PORT = 1883;
 const char* MQTT_TOPIC = "drscience/sticks3/battery/7c5e20f0d4a849ab";
@@ -49,24 +46,18 @@ void powerOff() {
   esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_ALL);
   esp_deep_sleep_start();
 }
-bool connectPriorityWiFi() {
+bool connectWiFi() {
+  show("WiFi...");
   WiFi.mode(WIFI_STA);
-  WiFi.setAutoReconnect(false);
-  for (size_t i = 0; i < WIFI_COUNT; ++i) {
-    show("WiFi " + String(i + 1) + "/3");
-    WiFi.disconnect(false, false);
-    WiFi.begin(WIFI_SSIDS[i], WIFI_PASSWORDS[i]);
-    unsigned long started = millis();
-    while (WiFi.status() != WL_CONNECTED &&
-           millis() - started < 4500UL) {
-      delay(50);
-    }
-    if (WiFi.status() == WL_CONNECTED) return true;
+  WiFi.begin(WIFI_SSID, WIFI_PASS);
+  unsigned long started = millis();
+  while (WiFi.status() != WL_CONNECTED && millis() - started < 10000UL) {
+    delay(50);
   }
-  return false;
+  return WiFi.status() == WL_CONNECTED;
 }
 void sendBattery() {
-  if (!connectPriorityWiFi()) {
+  if (!connectWiFi()) {
     show("WIFI FAIL");
     delay(900);
     return;
