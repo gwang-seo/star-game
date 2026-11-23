@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>StickS3 배터리 | 스타게임</title>
+<style>body{font-family:Arial,'Malgun Gothic',sans-serif;background:#e8f5ff;color:#173c68;max-width:620px;margin:40px auto;padding:16px;text-align:center}.panel{background:white;border-radius:22px;padding:30px 18px;box-shadow:0 5px 28px #9bbbd833}h1{font-size:27px}#battery{font-size:64px;font-weight:bold;margin:16px}#status{font-size:17px}#updated{font-size:14px;color:#567}a{color:#164b9d}button{border:0;border-radius:12px;padding:12px 20px;background:#1760ac;color:white;font-weight:bold;font-size:16px;cursor:pointer}.bar{height:22px;background:#d6e3ef;border-radius:12px;overflow:hidden;margin:20px auto;max-width:400px}.bar>div{height:100%;width:0;background:#35aa74;transition:width .4s}small{color:#678}</style></head>
+<body><div class="panel"><h1>🔋 StickS3 배터리</h1>
+<div id="battery">--%</div><div class="bar"><div id="fill"></div></div>
+<p id="status">PC 수신 서버 연결 중…</p><p id="updated">마지막 수신: 없음</p>
+<button id="refresh">새로고침</button>
+<p><small>학원 PC에서 battery_receiver.py를 먼저 실행하세요.<br>이 화면은 학원 PC에서 열어야 합니다.</small></p>
+<p><a href="./">← 스타게임 돌아가기</a></p></div>
+<script>
+const value=document.getElementById('battery'),fill=document.getElementById('fill'),statusEl=document.getElementById('status'),updated=document.getElementById('updated');
+async function refresh(){
+ try {
+  const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),3000);
+  let response;
+  try {response=await fetch('http://127.0.0.1:8765/battery',{cache:'no-store',signal:controller.signal});}
+  finally {clearTimeout(timeout);}
+  if(!response.ok)throw new Error('HTTP '+response.status);
+  const data=await response.json();
+  if(typeof data.battery==='number'){
+   value.textContent=data.battery+'%';fill.style.width=data.battery+'%';
+   fill.style.background=data.battery<20?'#df604e':'#35aa74';
+   statusEl.textContent='PC 수신 서버 연결됨';
+   updated.textContent='마지막 수신: '+(data.updated_at||'정보 없음');
+  } else {statusEl.textContent='연결됨 — StickS3 신호 대기 중';}
+ } catch(e) {statusEl.textContent='PC 수신 서버 연결 실패 — 프로그램 실행 및 브라우저 허용 확인';}
+}
+document.getElementById('refresh').onclick=refresh;refresh();setInterval(refresh,3000);
+</script></body></html>
